@@ -389,43 +389,6 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
         </div>
       </div>
 
-      {/* === Saisonnalité === */}
-      {seasonality.length > 0 && (
-        <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ background: '#5a9bb5', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Saisonnalité des commandes par mois
-          </div>
-          <div style={{ padding: '16px 16px 8px' }}>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={seasonality.map(m => ({
-                ...m,
-                label: new Date(m.mois + '-01').toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }),
-                montantM: Math.round(m.montantHT / 1000000 * 10) / 10,
-              }))}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
-                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#b06830' }} label={{ value: 'Nb cmds', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: '#b06830' } }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#3d8b6e' }} label={{ value: 'Montant (M MRU)', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: '#3d8b6e' } }} />
-                <Tooltip
-                  formatter={(v, name) => [name === 'nbCmds' ? `${v} commandes` : `${formatMontant(v * 1000000)} MRU`, name === 'nbCmds' ? 'Commandes' : 'Montant HT']}
-                  contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: '0.82rem' }}
-                />
-                <Bar yAxisId="left" dataKey="nbCmds" radius={[4, 4, 0, 0]} maxBarSize={32}>
-                  {seasonality.map((_, i) => (
-                    <Cell key={i} fill="#b06830" fillOpacity={0.75} />
-                  ))}
-                </Bar>
-                <Bar yAxisId="right" dataKey="montantM" radius={[4, 4, 0, 0]} maxBarSize={32}>
-                  {seasonality.map((_, i) => (
-                    <Cell key={i} fill="#3d8b6e" fillOpacity={0.75} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
       {/* === Détail des taxes par commande === */}
       {(() => {
         const ecartTaxes = cmds
