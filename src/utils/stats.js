@@ -1,0 +1,324 @@
+// --- Helpers ---
+
+function daysBetween(d1, d2) {
+  if (!d1 || !d2) return null;
+  const a = d1 instanceof Date ? d1 : new Date(d1);
+  const b = d2 instanceof Date ? d2 : new Date(d2);
+  if (isNaN(a) || isNaN(b)) return null;
+  return Math.round((b - a) / (1000 * 60 * 60 * 24));
+}
+
+function formatMontant(n) {
+  if (n == null) return '—';
+  return new Intl.NumberFormat('fr-FR').format(Math.round(n));
+}
+
+function avg(arr) {
+  const valid = arr.filter(v => v != null);
+  if (valid.length === 0) return null;
+  return valid.reduce((a, b) => a + b, 0) / valid.length;
+}
+
+// --- KPIs ---
+
+export function computeKPIs(cmds, bcs) {
+  const totalCmds = cmds.length;
+  const totalArticles = bcs.length;
+  const totalMontantHT = cmds.reduce((s, c) => s + (c.montHT || 0), 0);
+
+  const receptionnees = cmds.filter(c => c.datRec).length;
+  const facturees = cmds.filter(c => c.factDateFact).length;
+  const payees = cmds.filter(c => c.paiementDate).length;
+  const enCours = totalCmds - payees;
+
+  const encoursMontant = cmds
+    .filter(c => !c.paiementDate && c.montHT)
+    .reduce((s, c) => s + c.montHT, 0);
+
+  return {
+    totalCmds,
+    totalArticles,
+    totalMontantHT,
+    receptionnees,
+    facturees,
+    payees,
+    enCours,
+    encoursMontant,
+    formatMontant
+  };
+}
+
+// --- Délais ---
+
+export function computeDelays(cmds) {
+  const delaiCdeRec = [];
+  const delaiRecPaiement = [];
+  const delaiCdePaiement = [];
+  const respectDelai = { respecte: 0, depasse: 0, sansDelai: 0 };
+  const livraisonsEnRetard = [];
+  const livraisonsDansLesTemps = [];
+  const sansReception = [];
+  const sansDelaiPrevu = [];
+
+  cmds.forEach(c => {
+    const dcr = daysBetween(c.datCde, c.datRec);
+    if (dcr != null) {
+      delaiCdeRec.push({
+        numCmd: c.numCmd, fournisseur: c.nomFrn, jours: dcr,
+        datCde: c.datCde, datRec: c.datRec, montant: c.montTTC, objet: c.obsCde,
+        delaiPrevu: c.delaiLivraison
+      });
+    }
+
+    const drp = daysBetween(c.datRec, c.paiementDate);
+    if (drp != null) {
+      delaiRecPaiement.push({
+        numCmd: c.numCmd, fournisseur: c.nomFrn, jours: drp,
+        datRec: c.datRec, paiementDate: c.paiementDate, montant: c.montTTC, objet: c.obsCde,
+        depassement90: drp > 90 ? drp - 90 : 0
+      });
+    }
+
+    const dcp = daysBetween(c.datCde, c.paiementDate);
+    if (dcp != null) delaiCdePaiement.push({ numCmd: c.numCmd, jours: dcp });
+
+    if (c.delaiLivraison && c.datRec) {
+      const delaiPrevu = c.delaiLivraison instanceof Date ? c.delaiLivraison : new Date(c.delaiLivraison);
+      const datRec = c.datRec instanceof Date ? c.datRec : new Date(c.datRec);
+      if (!isNaN(delaiPrevu) && !isNaN(datRec)) {
+        const joursRetard = daysBetween(delaiPrevu, datRec);
+        if (datRec <= delaiPrevu) {
+          respectDelai.respecte++;
+          livraisonsDansLesTemps.push({
+            numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
+            datCde: c.datCde, delaiPrevu: c.delaiLivraison, datRec: c.datRec,
+            joursAvance: Math.abs(joursRetard), montant: c.montTTC
+          });
+        } else {
+          respectDelai.depasse++;
+          livraisonsEnRetard.push({
+            numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
+            datCde: c.datCde, delaiPrevu: c.delaiLivraison, datRec: c.datRec,
+            joursRetard, montant: c.montTTC
+          });
+        }
+      }
+    } else if (!c.delaiLivraison) {
+      respectDelai.sansDelai++;
+      if (c.datRec) {
+        sansDelaiPrevu.push({
+          numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
+          datCde: c.datCde, datRec: c.datRec, montant: c.montTTC
+        });
+      }
+    }
+
+    if (!c.datRec) {
+      sansReception.push({
+        numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
+        datCde: c.datCde, delaiPrevu: c.delaiLivraison, montant: c.montTTC,
+        enRetard: c.delaiLivraison ? new Date() > new Date(c.delaiLivraison) : null,
+        joursDepuisCde: daysBetween(c.datCde, new Date())
+      });
+    }
+  });
+
+  return {
+    delaiCdeRec: {
+      data: delaiCdeRec.sort((a, b) => b.jours - a.jours),
+      moyenne: Math.round(avg(delaiCdeRec.map(d => d.jours)) || 0),
+    },
+    delaiRecPaiement: {
+      data: delaiRecPaiement.sort((a, b) => b.jours - a.jours),
+      moyenne: Math.round(avg(delaiRecPaiement.map(d => d.jours)) || 0),
+    },
+    delaiCdePaiement: {
+      moyenne: Math.round(avg(delaiCdePaiement.map(d => d.jours)) || 0),
+    },
+    respectDelai,
+    livraisonsEnRetard: livraisonsEnRetard.sort((a, b) => b.joursRetard - a.joursRetard),
+    livraisonsDansLesTemps: livraisonsDansLesTemps.sort((a, b) => b.joursAvance - a.joursAvance),
+    sansReception: sansReception.sort((a, b) => (b.joursDepuisCde || 0) - (a.joursDepuisCde || 0)),
+    sansDelaiPrevu,
+  };
+}
+
+// --- Fournisseurs ---
+
+export function computeSupplierStats(cmds) {
+  const map = {};
+
+  cmds.forEach(c => {
+    const name = c.nomFrn || 'Inconnu';
+    if (!map[name]) {
+      map[name] = {
+        nom: name,
+        nbCommandes: 0,
+        montantTotal: 0,
+        delais: [],
+        sansReception: 0,
+        sansPaiement: 0,
+      };
+    }
+    map[name].nbCommandes++;
+    map[name].montantTotal += c.montHT || 0;
+
+    const d = daysBetween(c.datCde, c.datRec);
+    if (d != null) map[name].delais.push(d);
+
+    if (!c.datRec) map[name].sansReception++;
+    if (!c.paiementDate) map[name].sansPaiement++;
+  });
+
+  return Object.values(map)
+    .map(s => ({
+      ...s,
+      delaiMoyen: Math.round(avg(s.delais) || 0),
+    }))
+    .sort((a, b) => b.montantTotal - a.montantTotal);
+}
+
+// --- Articles: prix dans le temps + top articles petit prix ---
+
+export function computeArticleStats(bcs) {
+  const articleVolume = {};
+  const priceMap = {};
+
+  bcs.forEach(bc => {
+    const key = bc.codeArticle;
+    const label = bc.article || key;
+    const frn = bc.fournisseur || 'Inconnu';
+
+    // Grouper par CODE ARTICLE (tous fournisseurs)
+    if (!priceMap[key]) {
+      priceMap[key] = { code: key, label, entries: [] };
+    }
+    priceMap[key].entries.push({
+      date: bc.date,
+      pu: bc.pu,
+      fournisseur: frn,
+      qte: bc.qte,
+    });
+
+    if (!articleVolume[key]) {
+      articleVolume[key] = { code: key, label, totalQte: 0, totalHT: 0, nbCommandes: 0, puMoyen: 0, pus: [], dates: [], structures: new Set() };
+    }
+    articleVolume[key].totalQte += bc.qte || 0;
+    articleVolume[key].totalHT += bc.totalHT || 0;
+    articleVolume[key].nbCommandes++;
+    articleVolume[key].pus.push(bc.pu || 0);
+    if (bc.date) articleVolume[key].dates.push(bc.date);
+    if (bc.structure) articleVolume[key].structures.add(bc.structure);
+  });
+
+  // Evolution prix par article dans le temps
+  const priceEvolution = Object.values(priceMap)
+    .filter(a => a.entries.length >= 2)
+    .map(a => {
+      const sorted = [...a.entries].sort((x, y) => new Date(x.date) - new Date(y.date));
+      const prices = sorted.map(e => e.pu);
+      const uniquePrices = [...new Set(prices)];
+      // Ignorer si toutes les commandes ont le même prix
+      if (uniquePrices.length <= 1) return null;
+
+      const firstPrice = prices[0];
+      const lastPrice = prices[prices.length - 1];
+      const variation = firstPrice > 0 ? ((lastPrice - firstPrice) / firstPrice) * 100 : 0;
+
+      // Cause : si tous les achats viennent du même fournisseur → Inflation
+      // Sinon → Changement fournisseur
+      const fournisseurs = [...new Set(sorted.map(e => e.fournisseur))];
+      const cause = fournisseurs.length === 1 ? 'Inflation' : 'Changement fournisseur';
+
+      return {
+        ...a,
+        entries: sorted,
+        variation: Math.round(variation),
+        cause,
+        fournisseurs,
+        premierPU: firstPrice,
+        dernierPU: lastPrice,
+      };
+    })
+    .filter(a => a !== null && a.variation !== 0)
+    .sort((a, b) => Math.abs(b.variation) - Math.abs(a.variation));
+
+  // Articles petits prix et gros volumes → candidats au surstock
+  const surstockCandidates = Object.values(articleVolume)
+    .map(a => {
+      a.puMoyen = Math.round(avg(a.pus) || 0);
+      a.structures = [...a.structures];
+      a.derniereDate = a.dates.length > 0 ? a.dates.sort((x, y) => new Date(y) - new Date(x))[0] : null;
+      return a;
+    })
+    .filter(a => a.nbCommandes >= 3 && a.puMoyen > 0 && a.puMoyen < 10000)
+    .sort((a, b) => b.nbCommandes - a.nbCommandes);
+
+  return { priceEvolution, surstockCandidates };
+}
+
+// --- Alertes paiement > 90 jours ---
+
+export function computePaymentAlerts(cmds) {
+  const today = new Date();
+  const alerts = [];
+
+  cmds.forEach(c => {
+    if (c.factDateFr && !c.paiementDate) {
+      const dateFacture = c.factDateFr instanceof Date ? c.factDateFr : new Date(c.factDateFr);
+      if (!isNaN(dateFacture)) {
+        const jours = daysBetween(dateFacture, today);
+        if (jours > 90) {
+          alerts.push({
+            numCmd: c.numCmd,
+            fournisseur: c.nomFrn,
+            montant: c.montTTC,
+            dateFacture,
+            joursRetard: jours,
+            retardSur90: jours - 90,
+          });
+        }
+      }
+    }
+  });
+
+  return alerts.sort((a, b) => b.joursRetard - a.joursRetard);
+}
+
+// --- Montant par structure ---
+
+export function computeStructureStats(bcs) {
+  const map = {};
+
+  bcs.forEach(bc => {
+    const s = bc.structure || 'Inconnu';
+    if (!map[s]) {
+      map[s] = { structure: s, montantTotal: 0, nbBC: new Set(), nbArticles: 0 };
+    }
+    map[s].montantTotal += bc.totalHT || 0;
+    map[s].nbBC.add(bc.numBC);
+    map[s].nbArticles++;
+  });
+
+  return Object.values(map)
+    .map(s => ({ ...s, nbBC: s.nbBC.size }))
+    .sort((a, b) => b.montantTotal - a.montantTotal);
+}
+
+// --- Commandes sans facture après réception ---
+
+export function computeMissingDocs(cmds) {
+  const sansFacture = cmds.filter(c => c.datRec && !c.factDateFact);
+  const sansPaiement = cmds.filter(c => c.factDateFr && !c.paiementDate);
+  const sansReception = cmds.filter(c => !c.datRec);
+
+  return {
+    sansFacture: sansFacture.map(c => ({
+      numCmd: c.numCmd, fournisseur: c.nomFrn, montant: c.montTTC, dateRec: c.datRec
+    })),
+    sansPaiement: sansPaiement.length,
+    sansReception: sansReception.length,
+  };
+}
+
+export { formatMontant, daysBetween };
