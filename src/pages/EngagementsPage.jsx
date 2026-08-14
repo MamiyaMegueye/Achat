@@ -28,22 +28,6 @@ export default function EngagementsPage({ cmds }) {
     })
     .sort((a, b) => a.datFacture - b.datFacture);
 
-  // Engagements soldés (pour stats de performance)
-  const soldes = cmds
-    .filter(c => c.factDateFr && c.paiementDate)
-    .map(c => {
-      const datFacture = c.factDateFr instanceof Date ? c.factDateFr : new Date(c.factDateFr);
-      const datPaiement = c.paiementDate instanceof Date ? c.paiementDate : new Date(c.paiementDate);
-      return {
-        delaiPaiement: daysBetween(datFacture, datPaiement) || 0,
-        montTTC: c.montTTC || 0,
-      };
-    });
-
-  const delaiMoyenPaiement = soldes.length > 0
-    ? Math.round(soldes.reduce((s, e) => s + e.delaiPaiement, 0) / soldes.length)
-    : 0;
-
   // Grouper par mois de facture
   const parMois = {};
   engagements.forEach(e => {
@@ -110,7 +94,7 @@ export default function EngagementsPage({ cmds }) {
         <div style={{ background: '#8a5220', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Synthèse des engagements en cours
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', borderBottom: '1px solid var(--border-light)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid var(--border-light)' }}>
           <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border-light)' }}>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Total à payer</div>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#a63b32' }}>{formatMontant(totalEngagements)}</div>
@@ -119,11 +103,6 @@ export default function EngagementsPage({ cmds }) {
           <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border-light)' }}>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Fournisseurs concernés</div>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#8a5220' }}>{nbFrnTotal}</div>
-          </div>
-          <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border-light)' }}>
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Délai moyen de paiement</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#5e5288' }}>{delaiMoyenPaiement}j</div>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>sur {soldes.length} factures soldées</div>
           </div>
           <div style={{ padding: '14px 18px' }}>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Factures &gt; 90 jours</div>
