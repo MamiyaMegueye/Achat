@@ -5,7 +5,7 @@ import {
 import { formatMontant } from '../utils/stats';
 
 export default function ArticlesPage({ articleStats }) {
-  const { priceEvolution, surstockCandidates } = articleStats;
+  const { priceEvolution, surstockCandidates, prixComparaison = [], prixAberrants = [] } = articleStats;
   const [selectedArticle, setSelectedArticle] = useState(
     priceEvolution.length > 0 ? priceEvolution[0] : null
   );
@@ -167,14 +167,14 @@ export default function ArticlesPage({ articleStats }) {
       </div>
 
       {/* Surstock candidates */}
-      <div className="card full-width">
-        <div className="card-title">Candidats au surstock — articles petits prix commandés fréquemment</div>
+      <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ background: '#c48520', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Candidats au surstock — articles petits prix commandés fréquemment</div>
         {surstockCandidates.length === 0 ? (
           <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 40 }}>
             Pas assez de données (articles commandés au moins 3 fois requis)
           </div>
         ) : (
-          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+          <div style={{ padding: '0 16px 16px', maxHeight: 400, overflowY: 'auto' }}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -210,6 +210,9 @@ export default function ArticlesPage({ articleStats }) {
           </div>
         )}
       </div>
+
+
+
     </div>
   );
 }

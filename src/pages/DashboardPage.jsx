@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell
+} from 'recharts';
+import {
   ShoppingCart, PackageCheck, CreditCard, Clock,
   AlertTriangle, TrendingUp, CheckCircle2, XCircle, X
 } from 'lucide-react';
 import { formatMontant } from '../utils/stats';
 
-export default function DashboardPage({ kpis, delays, supplierStats, paymentAlerts, cmds = [] }) {
+export default function DashboardPage({ kpis, delays, supplierStats, paymentAlerts, cmds = [], seasonality = [] }) {
 
   const [selectedPipeline, setSelectedPipeline] = useState(null);
   const [selectedFrn, setSelectedFrn] = useState(null);
@@ -385,6 +388,100 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
           })}
         </div>
       </div>
+
+      {/* === Saisonnalité === */}
+      {seasonality.length > 0 && (
+        <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ background: '#5a9bb5', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Saisonnalité des commandes par mois
+          </div>
+          <div style={{ padding: '16px 16px 8px' }}>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={seasonality.map(m => ({
+                ...m,
+                label: new Date(m.mois + '-01').toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }),
+                montantM: Math.round(m.montantHT / 1000000 * 10) / 10,
+              }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#b06830' }} label={{ value: 'Nb cmds', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: '#b06830' } }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#3d8b6e' }} label={{ value: 'Montant (M MRU)', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: '#3d8b6e' } }} />
+                <Tooltip
+                  formatter={(v, name) => [name === 'nbCmds' ? `${v} commandes` : `${formatMontant(v * 1000000)} MRU`, name === 'nbCmds' ? 'Commandes' : 'Montant HT']}
+                  contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: '0.82rem' }}
+                />
+                <Bar yAxisId="left" dataKey="nbCmds" radius={[4, 4, 0, 0]} maxBarSize={32}>
+                  {seasonality.map((_, i) => (
+                    <Cell key={i} fill="#b06830" fillOpacity={0.75} />
+                  ))}
+                </Bar>
+                <Bar yAxisId="right" dataKey="montantM" radius={[4, 4, 0, 0]} maxBarSize={32}>
+                  {seasonality.map((_, i) => (
+                    <Cell key={i} fill="#3d8b6e" fillOpacity={0.75} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* === Détail des taxes par commande === */}
+      {(() => {
+        const ecartTaxes = cmds
+          .filter(c => c.montHT && c.montTTC && Math.abs(c.montTTC - c.montHT) > 100)
+          .map(c => ({
+            numCmd: c.numCmd,
+            fournisseur: c.nomFrn,
+            montHT: c.montHT,
+            montTTC: c.montTTC,
+            ecart: c.montTTC - c.montHT,
+          }))
+          .sort((a, b) => Math.abs(b.ecart) - Math.abs(a.ecart));
+
+        if (ecartTaxes.length === 0) return null;
+
+        return (
+          <div className="card full-width">
+            <div style={{ background: '#7b6fa0', color: 'white', padding: '10px 16px', borderRadius: '8px 8px 0 0', margin: '-24px -24px 16px -24px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Détail des taxes appliquées par commande</div>
+            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>N° CMD</th>
+                    <th>Fournisseur</th>
+                    <th style={{ textAlign: 'right' }}>Mont. HT</th>
+                    <th style={{ textAlign: 'right' }}>Mont. TTC</th>
+                    <th style={{ textAlign: 'right' }}>Taxe</th>
+                    <th style={{ textAlign: 'right' }}>Taux</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ecartTaxes.map((c, i) => {
+                    const taux = c.montHT > 0 ? Math.round((c.ecart / c.montHT) * 100) : 0;
+                    return (
+                      <tr key={i}>
+                        <td>{c.numCmd}</td>
+                        <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.fournisseur}
+                        </td>
+                        <td className="amount">{formatMontant(c.montHT)}</td>
+                        <td className="amount">{formatMontant(c.montTTC)}</td>
+                        <td className="amount" style={{ color: 'var(--warning)', fontWeight: 600 }}>
+                          +{formatMontant(c.ecart)}
+                        </td>
+                        <td className="amount" style={{ fontWeight: 600, color: taux !== 5 ? '#a63b32' : 'var(--text-secondary)' }}>
+                          {taux}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       <style>{`
         @keyframes fadeIn {

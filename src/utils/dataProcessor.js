@@ -55,6 +55,25 @@ function cleanStr(v) {
   return String(v).replace(/\/\/$/g, '').replace(/\/\//g, '').trim();
 }
 
+// Normalise un nom d'article : casse titre, espaces multiples, trim
+function normalizeArticleName(name) {
+  if (!name) return '';
+  let s = String(name).trim();
+  // Supprimer doubles espaces
+  s = s.replace(/\s+/g, ' ');
+  // Mettre en casse titre (première lettre majuscule, reste minuscule par mot)
+  // Sauf pour les sigles/unités courants qu'on garde en majuscules
+  const keepUpper = ['DN', 'PN', 'PEHD', 'PE', 'PVC', 'INOX', 'BA', 'CV', 'KW', 'HP', 'LED', 'USB', 'SSD', 'RAM', 'HMT', 'IP', 'AC', 'DC'];
+  s = s.split(' ').map(word => {
+    const upper = word.toUpperCase();
+    if (keepUpper.includes(upper)) return upper;
+    if (/^\d/.test(word)) return word; // commence par un chiffre → garder tel quel
+    if (word.length <= 1) return word.toLowerCase();
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join(' ');
+  return s;
+}
+
 // Flexible column getter: tries exact name, with trailing space,
 // and case-insensitive partial match
 function makeGetter(row, colNames) {
@@ -113,7 +132,7 @@ export function parseBonsCommande(workbook) {
         totalTTC: Number(get('TOTAL TTC', 'TOTAL_TTC', 'TOTALTTC')) || 0,
         fournisseur: cleanStr(get('FOURNISSEUR', 'NOM_FRN')),
         objet: cleanStr(get('OBJET', 'OBS_CDE')),
-        article: cleanStr(get('ARTICLE', 'DESIGNATION')),
+        article: normalizeArticleName(cleanStr(get('ARTICLE', 'DESIGNATION'))),
       };
     })
     .filter(r => r.numBC > 0);
@@ -198,7 +217,7 @@ export function parseSuiviCmd(workbook) {
         delaiLivraison: parseExcelDate(get('DELAI DE LIVRAISON', 'DELAI_LIVRAISON', 'DELAI_DE_LIVRAISON', 'DELAILIVRAISON', 'DELAI')),
         codeFour: Number(get('COD_FOUR', 'CODE_FOUR')) || 0,
         nomFrn: cleanStr(get('NOM_FRN', 'NOM_FOURNISSEUR', 'FOURNISSEUR')),
-        obsCde: cleanStr(get('OBS_CDE', 'OBJET', 'OBSERVATION')),
+        obsCde: normalizeArticleName(cleanStr(get('OBS_CDE', 'OBJET', 'OBSERVATION'))),
         montHT: Number(get('MONT HT', 'MONT_HT', 'MONTANT_HT', 'MONTHT')) || 0,
         montTTC: Number(get('MONT TTC', 'MONT_TTC', 'MONTANT_TTC', 'MONTTTC')) || 0,
         numRec: get('NUM_REC') ? Number(get('NUM_REC')) : null,

@@ -254,7 +254,69 @@ export function computeArticleStats(bcs) {
     .filter(a => a.nbCommandes >= 3 && a.puMoyen > 0 && a.puMoyen < 10000)
     .sort((a, b) => b.nbCommandes - a.nbCommandes);
 
-  return { priceEvolution, surstockCandidates };
+  // === Comparaison prix fournisseurs (économies potentielles) ===
+  const pricesByArticleFrn = {};
+  bcs.forEach(bc => {
+    const key = bc.codeArticle;
+    const frn = bc.fournisseur || 'Inconnu';
+    if (!bc.pu || bc.pu <= 0) return;
+    if (!pricesByArticleFrn[key]) pricesByArticleFrn[key] = {};
+    if (!pricesByArticleFrn[key][frn]) pricesByArticleFrn[key][frn] = { pus: [], qtes: 0 };
+    pricesByArticleFrn[key][frn].pus.push(bc.pu);
+    pricesByArticleFrn[key][frn].qtes += bc.qte || 0;
+  });
+
+  const prixComparaison = [];
+  for (const code in pricesByArticleFrn) {
+    const frns = pricesByArticleFrn[code];
+    const frnNames = Object.keys(frns);
+    if (frnNames.length < 2) continue;
+
+    const avgByFrn = {};
+    frnNames.forEach(f => { avgByFrn[f] = Math.round(avg(frns[f].pus) || 0); });
+
+    const bestFrn = frnNames.reduce((a, b) => avgByFrn[a] < avgByFrn[b] ? a : b);
+    const bestPrice = avgByFrn[bestFrn];
+    if (bestPrice <= 0) continue;
+
+    frnNames.forEach(frn => {
+      if (frn === bestFrn) return;
+      const frnPrice = avgByFrn[frn];
+      if (frnPrice > bestPrice * 1.2) {
+        const qte = frns[frn].qtes;
+        const saving = (frnPrice - bestPrice) * qte;
+        if (saving > 1000) {
+          const label = articleVolume[code]?.label || code;
+          prixComparaison.push({
+            code, label, fournisseurCher: frn, fournisseurMoinsCher: bestFrn,
+            prixCher: frnPrice, prixBas: bestPrice, qteAchetee: qte,
+            economie: Math.round(saving),
+            ecartPct: Math.round(((frnPrice - bestPrice) / bestPrice) * 100),
+          });
+        }
+      }
+    });
+  }
+  prixComparaison.sort((a, b) => b.economie - a.economie);
+
+  // === Prix aberrants (même article, ratio x10+) ===
+  const prixAberrants = [];
+  for (const code in pricesByArticleFrn) {
+    const allPus = [];
+    for (const frn in pricesByArticleFrn[code]) {
+      pricesByArticleFrn[code][frn].pus.forEach(p => { if (p > 0) allPus.push(p); });
+    }
+    if (allPus.length < 2) continue;
+    const mn = Math.min(...allPus);
+    const mx = Math.max(...allPus);
+    if (mn > 0 && mx / mn >= 10) {
+      const label = articleVolume[code]?.label || code;
+      prixAberrants.push({ code, label, prixMin: mn, prixMax: mx, ratio: Math.round(mx / mn) });
+    }
+  }
+  prixAberrants.sort((a, b) => b.ratio - a.ratio);
+
+  return { priceEvolution, surstockCandidates, prixComparaison, prixAberrants };
 }
 
 // --- Alertes paiement > 90 jours ---
@@ -319,6 +381,22 @@ export function computeMissingDocs(cmds) {
     sansPaiement: sansPaiement.length,
     sansReception: sansReception.length,
   };
+}
+
+// --- Saisonnalité des commandes par mois ---
+
+export function computeSeasonality(cmds) {
+  const monthMap = {};
+  cmds.forEach(c => {
+    if (!c.datCde) return;
+    const d = c.datCde instanceof Date ? c.datCde : new Date(c.datCde);
+    if (isNaN(d)) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (!monthMap[key]) monthMap[key] = { mois: key, nbCmds: 0, montantHT: 0 };
+    monthMap[key].nbCmds++;
+    monthMap[key].montantHT += c.montHT || 0;
+  });
+  return Object.values(monthMap).sort((a, b) => a.mois.localeCompare(b.mois));
 }
 
 export { formatMontant, daysBetween };

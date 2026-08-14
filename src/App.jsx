@@ -12,7 +12,7 @@ import { getAllBonsCommande, getAllSuiviCmd, getDataCounts } from './utils/stora
 import {
   computeKPIs, computeDelays, computeSupplierStats,
   computeArticleStats, computePaymentAlerts,
-  computeStructureStats, computeMissingDocs
+  computeStructureStats, computeMissingDocs, computeSeasonality
 } from './utils/stats';
 import { Upload } from 'lucide-react';
 
@@ -41,10 +41,11 @@ export default function App() {
         const paymentAlerts = computePaymentAlerts(cmds);
         const structureStats = computeStructureStats(bcs);
         const missingDocs = computeMissingDocs(cmds);
+        const seasonality = computeSeasonality(cmds);
 
         setStats({
           kpis, delays, supplierStats, articleStats,
-          paymentAlerts, structureStats, missingDocs, cmds
+          paymentAlerts, structureStats, missingDocs, cmds, seasonality
         });
 
         if (activePage === 'import' && counts.bcCount > 0 && counts.cmdCount > 0) {
@@ -93,6 +94,7 @@ export default function App() {
           supplierStats={stats.supplierStats}
           paymentAlerts={stats.paymentAlerts}
           cmds={stats.cmds}
+          seasonality={stats.seasonality}
         />;
       case 'delays':
         return <DelaysPage delays={stats.delays} />;

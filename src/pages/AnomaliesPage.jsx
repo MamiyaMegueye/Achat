@@ -3,33 +3,46 @@ import { AlertTriangle, FileX, CreditCard } from 'lucide-react';
 import { formatMontant } from '../utils/stats';
 
 export default function AnomaliesPage({ missingDocs, cmds }) {
-  // Commandes avec écart HT/TTC significatif
-  const ecartTaxes = cmds
-    .filter(c => c.montHT && c.montTTC && Math.abs(c.montTTC - c.montHT) > 100)
-    .map(c => ({
+  // Analyse par ordre de paiement → retenues de garantie
+  const ordresMap = {};
+  cmds.forEach(c => {
+    if (!c.paiementNumOrdre || !c.paiementMontant) return;
+    const key = c.paiementNumOrdre;
+    if (!ordresMap[key]) {
+      ordresMap[key] = { numOrdre: key, montantPaye: c.paiementMontant, commandes: [] };
+    }
+    ordresMap[key].commandes.push({
       numCmd: c.numCmd,
       fournisseur: c.nomFrn,
-      montHT: c.montHT,
-      montTTC: c.montTTC,
-      ecart: c.montTTC - c.montHT,
-    }))
-    .sort((a, b) => Math.abs(b.ecart) - Math.abs(a.ecart));
+      montTTC: c.montTTC || 0,
+    });
+  });
 
-  // Commandes avec paiement différent du TTC
-  const ecartPaiement = cmds
-    .filter(c => c.paiementMontant && c.montTTC && Math.abs(c.paiementMontant - c.montTTC) > 100)
-    .map(c => ({
-      numCmd: c.numCmd,
-      fournisseur: c.nomFrn,
-      montTTC: c.montTTC,
-      paiement: c.paiementMontant,
-      ecart: c.paiementMontant - c.montTTC,
-    }))
-    .sort((a, b) => Math.abs(b.ecart) - Math.abs(a.ecart));
+  const retenues = Object.values(ordresMap)
+    .map(o => {
+      const sommeTTC = o.commandes.reduce((s, c) => s + c.montTTC, 0);
+      const ecart = o.montantPaye - sommeTTC;
+      return {
+        ...o,
+        sommeTTC,
+        ecart,
+        nbCmds: o.commandes.length,
+        fournisseur: o.commandes[0].fournisseur,
+      };
+    })
+    .filter(o => o.ecart < -100 && o.sommeTTC > 0)
+    .sort((a, b) => a.ecart - b.ecart);
 
   // Bilan global : commandé vs payé
   const totalTTC = cmds.reduce((s, c) => s + (c.montTTC || 0), 0);
-  const totalPaye = cmds.reduce((s, c) => s + (c.paiementMontant || 0), 0);
+  // Total payé = somme des montants par ordre (dédupliqué)
+  const ordresPaye = {};
+  cmds.forEach(c => {
+    if (c.paiementNumOrdre && c.paiementMontant) {
+      ordresPaye[c.paiementNumOrdre] = c.paiementMontant;
+    }
+  });
+  const totalPaye = Object.values(ordresPaye).reduce((s, v) => s + v, 0);
   const soldeRestant = totalTTC - totalPaye;
   const pctPaye = totalTTC > 0 ? Math.round((totalPaye / totalTTC) * 100) : 0;
 
@@ -42,9 +55,7 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
 
       {/* Bilan financier global */}
       <div className="card full-width" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-light)' }}>
-          <div className="card-title" style={{ marginBottom: 0 }}>Bilan financier global</div>
-        </div>
+        <div style={{ background: '#8a5220', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Bilan financier global</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid var(--border-light)' }}>
           <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border-light)' }}>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Total commandé (TTC)</div>
@@ -54,7 +65,7 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
           <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border-light)' }}>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Total payé</div>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#2b6e52' }}>{formatMontant(totalPaye)}</div>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{pctPaye}% du total</div>
+            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{pctPaye}% du total · {Object.keys(ordresPaye).length} ordres</div>
           </div>
           <div style={{ padding: '14px 18px' }}>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Solde restant</div>
@@ -99,14 +110,14 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
           <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.6)' }}>
             <CreditCard size={14} style={{ color: '#5e5288' }} />
           </div>
-          <div className="kpi-value" style={{ color: '#5e5288' }}>{ecartPaiement.length}</div>
-          <div className="kpi-label">Écart paiement / TTC</div>
+          <div className="kpi-value" style={{ color: '#5e5288' }}>{retenues.length}</div>
+          <div className="kpi-label">Ordres avec montant retenu</div>
         </div>
       </div>
 
       {/* Réceptionnées sans facture */}
       <div className="card full-width">
-        <div className="card-title">Commandes réceptionnées sans facture enregistrée</div>
+        <div style={{ background: '#b06830', color: 'white', padding: '10px 16px', borderRadius: '8px 8px 0 0', margin: '-24px -24px 16px -24px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Commandes réceptionnées sans facture enregistrée</div>
         {missingDocs.sansFacture.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Aucune anomalie</div>
         ) : (
@@ -122,7 +133,7 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
               </thead>
               <tbody>
                 {missingDocs.sansFacture.map((c, i) => (
-                  <tr key={i}>
+                  <tr key={i} style={{ background: i % 2 === 0 ? '#fdf3e4' : '#fae8e6' }}>
                     <td style={{ fontWeight: 500 }}>{c.numCmd}</td>
                     <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {c.fournisseur}
@@ -137,32 +148,43 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
         )}
       </div>
 
-      {/* Écart paiement / TTC */}
-      {ecartPaiement.length > 0 && (
+      {/* Retenues de garantie */}
+      {retenues.length > 0 && (
         <div className="card full-width">
-          <div className="card-title">Écart entre montant payé et montant TTC (retenues, acomptes)</div>
-          <div style={{ maxHeight: 350, overflowY: 'auto' }}>
+          <div style={{ background: '#3d8b6e', color: 'white', padding: '10px 16px', borderRadius: '8px 8px 0 0', margin: '-24px -24px 16px -24px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Écart entre montant facturé (TTC) et montant effectivement payé par ordre de paiement</div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginBottom: 14 }}>
+            Pour chaque ordre de paiement, comparaison entre la somme des montants TTC des commandes et le montant versé. Le taux standard est de 2%.
+          </p>
+          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>N° CMD</th>
+                  <th>N° Ordre</th>
                   <th>Fournisseur</th>
-                  <th style={{ textAlign: 'right' }}>Montant TTC</th>
+                  <th style={{ textAlign: 'center' }}>Nb CMD</th>
+                  <th style={{ textAlign: 'right' }}>Somme TTC</th>
                   <th style={{ textAlign: 'right' }}>Montant payé</th>
-                  <th style={{ textAlign: 'right' }}>Écart</th>
+                  <th style={{ textAlign: 'right' }}>Montant retenu</th>
+                  <th style={{ textAlign: 'right' }}>Taux</th>
                 </tr>
               </thead>
               <tbody>
-                {ecartPaiement.map((c, i) => (
+                {retenues.map((o, i) => (
                   <tr key={i}>
-                    <td style={{ fontWeight: 500 }}>{c.numCmd}</td>
-                    <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {c.fournisseur}
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', fontWeight: 500 }}>{o.numOrdre}</td>
+                    <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {o.fournisseur}
                     </td>
-                    <td className="amount">{formatMontant(c.montTTC)}</td>
-                    <td className="amount">{formatMontant(c.paiement)}</td>
-                    <td className="amount" style={{ color: c.ecart < 0 ? 'var(--danger)' : 'var(--warning)', fontWeight: 600 }}>
-                      {c.ecart > 0 ? '+' : ''}{formatMontant(c.ecart)}
+                    <td style={{ textAlign: 'center' }}>
+                      <span className="badge badge-neutral">{o.nbCmds}</span>
+                    </td>
+                    <td className="amount">{formatMontant(o.sommeTTC)}</td>
+                    <td className="amount">{formatMontant(o.montantPaye)}</td>
+                    <td className="amount" style={{ color: '#a63b32', fontWeight: 600 }}>
+                      {formatMontant(Math.abs(o.ecart))}
+                    </td>
+                    <td className="amount" style={{ fontWeight: 600, color: Math.round(Math.abs(o.ecart) / o.sommeTTC * 100) !== 2 ? '#a63b32' : 'var(--text-secondary)' }}>
+                      {Math.round(Math.abs(o.ecart) / o.sommeTTC * 100)}%
                     </td>
                   </tr>
                 ))}
@@ -172,40 +194,6 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
         </div>
       )}
 
-      {/* Écart HT / TTC */}
-      {ecartTaxes.length > 0 && (
-        <div className="card full-width">
-          <div className="card-title">Commandes avec écart HT / TTC significatif</div>
-          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>N° CMD</th>
-                  <th>Fournisseur</th>
-                  <th style={{ textAlign: 'right' }}>Mont. HT</th>
-                  <th style={{ textAlign: 'right' }}>Mont. TTC</th>
-                  <th style={{ textAlign: 'right' }}>Écart</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ecartTaxes.map((c, i) => (
-                  <tr key={i}>
-                    <td>{c.numCmd}</td>
-                    <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {c.fournisseur}
-                    </td>
-                    <td className="amount">{formatMontant(c.montHT)}</td>
-                    <td className="amount">{formatMontant(c.montTTC)}</td>
-                    <td className="amount" style={{ color: 'var(--warning)', fontWeight: 600 }}>
-                      +{formatMontant(c.ecart)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

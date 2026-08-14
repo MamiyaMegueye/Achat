@@ -175,7 +175,7 @@ function DelaysContent({ delays }) {
                     <tr>
                       <th>N° CMD</th>
                       <th>Fournisseur</th>
-                      <th>Objet</th>
+                      <th>Article</th>
                       <th>Date Cde</th>
                       <th>Délai prévu</th>
                       <th>Date réception</th>
@@ -188,7 +188,7 @@ function DelaysContent({ delays }) {
                       <tr key={i}>
                         <td style={{ fontWeight: 600 }}>{d.numCmd}</td>
                         <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
-                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet}</td>
+                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet || '—'}</td>
                         <td>{fmtDate(d.datCde)}</td>
                         <td>{fmtDate(d.delaiPrevu)}</td>
                         <td style={{ color: 'var(--danger)' }}>{fmtDate(d.datRec)}</td>
@@ -217,6 +217,7 @@ function DelaysContent({ delays }) {
                     <tr>
                       <th>N° CMD</th>
                       <th>Fournisseur</th>
+                      <th>Article</th>
                       <th>Date Cde</th>
                       <th>Délai prévu</th>
                       <th>Date réception</th>
@@ -228,6 +229,7 @@ function DelaysContent({ delays }) {
                       <tr key={i}>
                         <td>{d.numCmd}</td>
                         <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
+                        <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet || '—'}</td>
                         <td>{fmtDate(d.datCde)}</td>
                         <td>{fmtDate(d.delaiPrevu)}</td>
                         <td style={{ color: 'var(--success)' }}>{fmtDate(d.datRec)}</td>
@@ -271,6 +273,7 @@ function DelaysContent({ delays }) {
                   <tr>
                     <th>N° CMD</th>
                     <th>Fournisseur</th>
+                    <th>Article</th>
                     <th>Date Cde</th>
                     <th>Date Réc.</th>
                     <th style={{ textAlign: 'right' }}>Délai</th>
@@ -282,6 +285,7 @@ function DelaysContent({ delays }) {
                     <tr key={i}>
                       <td style={{ fontWeight: 500 }}>{d.numCmd}</td>
                       <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
+                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet || '—'}</td>
                       <td style={{ fontSize: '0.78rem' }}>{fmtDate(d.datCde)}</td>
                       <td style={{ fontSize: '0.78rem' }}>{fmtDate(d.datRec)}</td>
                       <td className="amount">
@@ -326,6 +330,7 @@ function DelaysContent({ delays }) {
                   <tr>
                     <th>N° CMD</th>
                     <th>Fournisseur</th>
+                    <th>Article</th>
                     <th>Date Réc.</th>
                     <th>Date Paie.</th>
                     <th style={{ textAlign: 'right' }}>Délai</th>
@@ -337,6 +342,7 @@ function DelaysContent({ delays }) {
                     <tr key={i}>
                       <td style={{ fontWeight: 500 }}>{d.numCmd}</td>
                       <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
+                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet || '—'}</td>
                       <td style={{ fontSize: '0.78rem' }}>{fmtDate(d.datRec)}</td>
                       <td style={{ fontSize: '0.78rem' }}>{fmtDate(d.paiementDate)}</td>
                       <td className="amount">
@@ -378,7 +384,7 @@ function DelaysContent({ delays }) {
                   <tr>
                     <th>N° CMD</th>
                     <th>Fournisseur</th>
-                    <th>Objet</th>
+                    <th>Article</th>
                     <th>Date Cde</th>
                     <th>Délai prévu</th>
                     <th style={{ textAlign: 'right' }}>Depuis Cde</th>
