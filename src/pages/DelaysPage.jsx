@@ -119,7 +119,7 @@ function DelaysContent({ delays }) {
           <div className="kpi-value" style={{ color: tauxRespect >= 70 ? 'var(--success)' : tauxRespect >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{tauxRespect}%</div>
           <div className="kpi-label">Respect délai livraison</div>
           <div className="kpi-sub">{respecte} à temps · {depasse} en retard</div>
-          <div className="kpi-sub" style={{ marginTop: 2 }}>{sansDelai} sans délai contractuel (dont {sansDelaiPrevu.length} réceptionnées, {sansDelai - sansDelaiPrevu.length} non réceptionnées)</div>
+          <div className="kpi-sub" style={{ marginTop: 2 }}>{sansDelai} sans date de livraison (dont {sansDelaiPrevu.length} réceptionnées, {sansDelai - sansDelaiPrevu.length} non réceptionnées)</div>
         </div>
       </div>
 
@@ -157,7 +157,7 @@ function DelaysContent({ delays }) {
           Non réceptionnées ({sansReception.length})
         </button>
         <button className={`tab ${section === 'sans-delai' ? 'active' : ''}`} onClick={() => setSection('sans-delai')}>
-          Sans délai contractuel ({sansDelaiPrevu.length})
+          Sans date de livraison ({sansDelaiPrevu.length})
         </button>
       </div>
 
@@ -420,14 +420,14 @@ function DelaysContent({ delays }) {
           )}
         </div>
       )}
-      {/* SECTION: Sans délai contractuel */}
+      {/* SECTION: Sans date de livraison */}
       {section === 'sans-delai' && (
         <div className="card full-width" style={{ borderLeft: '4px solid #7b6fa0' }}>
           <div className="card-title" style={{ color: '#7b6fa0' }}>
-            Commandes sans délai contractuel — réceptionnées ({sansDelaiPrevu.length})
+            Commandes sans date de livraison — réceptionnées ({sansDelaiPrevu.length})
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: 16 }}>
-            Sur {sansDelai} commandes sans délai contractuel : {sansDelaiPrevu.length} ont été réceptionnées (affichées ci-dessous avec leur délai réel), {sansDelai - sansDelaiPrevu.length} ne sont pas encore réceptionnées (visibles dans l'onglet "Non réceptionnées"). Ces commandes sont exclues du taux de respect des délais.
+            Sur {sansDelai} commandes sans date de livraison : {sansDelaiPrevu.length} ont été réceptionnées (affichées ci-dessous avec leur délai réel), {sansDelai - sansDelaiPrevu.length} ne sont pas encore réceptionnées (visibles dans l'onglet "Non réceptionnées"). Ces commandes sont exclues du taux de respect des délais.
           </p>
           {sansDelaiPrevu.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Aucune commande dans cette catégorie</div>

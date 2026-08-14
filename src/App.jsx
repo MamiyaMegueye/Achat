@@ -102,8 +102,7 @@ export default function App() {
         return <SuppliersPage supplierStats={stats.supplierStats} />;
       case 'articles':
         return <ArticlesPage articleStats={stats.articleStats} />;
-      case 'alerts':
-        return <AlertsPage paymentAlerts={stats.paymentAlerts} />;
+      // alerts supprimé — intégré dans Vue d'ensemble
       case 'structures':
         return <StructuresPage structureStats={stats.structureStats} />;
       case 'anomalies':

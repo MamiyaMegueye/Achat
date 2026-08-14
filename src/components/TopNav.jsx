@@ -10,7 +10,6 @@ const navItems = [
   { id: 'delays', label: 'Délais', icon: Clock },
   { id: 'suppliers', label: 'Fournisseurs', icon: Users },
   { id: 'articles', label: 'Articles & Prix', icon: Package },
-  { id: 'alerts', label: 'Alertes', icon: AlertTriangle },
   { id: 'structures', label: 'Structures', icon: Building2 },
   { id: 'anomalies', label: 'Anomalies', icon: FileWarning },
 ];

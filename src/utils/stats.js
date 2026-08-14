@@ -82,25 +82,49 @@ export function computeDelays(cmds) {
     const dcp = daysBetween(c.datCde, c.paiementDate);
     if (dcp != null) delaiCdePaiement.push({ numCmd: c.numCmd, jours: dcp });
 
-    if (c.delaiLivraison && c.datRec) {
+    if (c.delaiLivraison) {
       const delaiPrevu = c.delaiLivraison instanceof Date ? c.delaiLivraison : new Date(c.delaiLivraison);
-      const datRec = c.datRec instanceof Date ? c.datRec : new Date(c.datRec);
-      if (!isNaN(delaiPrevu) && !isNaN(datRec)) {
-        const joursRetard = daysBetween(delaiPrevu, datRec);
-        if (datRec <= delaiPrevu) {
-          respectDelai.respecte++;
-          livraisonsDansLesTemps.push({
-            numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
-            datCde: c.datCde, delaiPrevu: c.delaiLivraison, datRec: c.datRec,
-            joursAvance: Math.abs(joursRetard), montant: c.montTTC
-          });
+      const datCdeDate = c.datCde instanceof Date ? c.datCde : new Date(c.datCde);
+      // Exclure les délais invalides : delaiPrevu doit être après datCde et dans un écart raisonnable (< 3 ans)
+      if (!isNaN(delaiPrevu) && !isNaN(datCdeDate) && delaiPrevu >= datCdeDate && daysBetween(datCdeDate, delaiPrevu) < 1095) {
+        if (c.datRec) {
+          const datRec = c.datRec instanceof Date ? c.datRec : new Date(c.datRec);
+          if (!isNaN(datRec) && datRec <= delaiPrevu) {
+            // À temps : réceptionné avant ou le jour du délai
+            respectDelai.respecte++;
+            livraisonsDansLesTemps.push({
+              numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
+              datCde: c.datCde, delaiPrevu: c.delaiLivraison, datRec: c.datRec,
+              joursAvance: Math.abs(daysBetween(delaiPrevu, datRec)), montant: c.montTTC
+            });
+          } else {
+            // En retard : réceptionné après le délai
+            respectDelai.depasse++;
+            livraisonsEnRetard.push({
+              numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
+              datCde: c.datCde, delaiPrevu: c.delaiLivraison, datRec: c.datRec,
+              joursRetard: daysBetween(delaiPrevu, datRec), montant: c.montTTC
+            });
+          }
         } else {
-          respectDelai.depasse++;
-          livraisonsEnRetard.push({
-            numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
-            datCde: c.datCde, delaiPrevu: c.delaiLivraison, datRec: c.datRec,
-            joursRetard, montant: c.montTTC
-          });
+          // Non réceptionnée : comparer délai prévu avec aujourd'hui
+          if (new Date() > delaiPrevu) {
+            respectDelai.depasse++;
+            livraisonsEnRetard.push({
+              numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
+              datCde: c.datCde, delaiPrevu: c.delaiLivraison, datRec: null,
+              joursRetard: daysBetween(delaiPrevu, new Date()), montant: c.montTTC,
+              nonReceptionnee: true
+            });
+          } else {
+            respectDelai.respecte++;
+            livraisonsDansLesTemps.push({
+              numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
+              datCde: c.datCde, delaiPrevu: c.delaiLivraison, datRec: null,
+              joursAvance: daysBetween(new Date(), delaiPrevu), montant: c.montTTC,
+              nonReceptionnee: true
+            });
+          }
         }
       }
     } else if (!c.delaiLivraison) {
