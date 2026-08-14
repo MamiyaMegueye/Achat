@@ -106,9 +106,11 @@ export function computeDelays(cmds) {
     } else if (!c.delaiLivraison) {
       respectDelai.sansDelai++;
       if (c.datRec) {
+        const delaiReel = daysBetween(c.datCde, c.datRec);
         sansDelaiPrevu.push({
           numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
-          datCde: c.datCde, datRec: c.datRec, montant: c.montTTC
+          datCde: c.datCde, datRec: c.datRec, montant: c.montTTC,
+          delaiReel
         });
       }
     }
@@ -139,7 +141,7 @@ export function computeDelays(cmds) {
     livraisonsEnRetard: livraisonsEnRetard.sort((a, b) => b.joursRetard - a.joursRetard),
     livraisonsDansLesTemps: livraisonsDansLesTemps.sort((a, b) => b.joursAvance - a.joursAvance),
     sansReception: sansReception.sort((a, b) => (b.joursDepuisCde || 0) - (a.joursDepuisCde || 0)),
-    sansDelaiPrevu,
+    sansDelaiPrevu: sansDelaiPrevu.sort((a, b) => (b.delaiReel || 0) - (a.delaiReel || 0)),
   };
 }
 

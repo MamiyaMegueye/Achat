@@ -57,6 +57,7 @@ function DelaysContent({ delays }) {
   const livraisonsEnRetard = delays.livraisonsEnRetard || [];
   const livraisonsDansLesTemps = delays.livraisonsDansLesTemps || [];
   const sansReception = delays.sansReception || [];
+  const sansDelaiPrevu = delays.sansDelaiPrevu || [];
 
   const buckets = [
     { range: '0-15j', min: 0, max: 15, color: '#2a7f62' },
@@ -153,6 +154,9 @@ function DelaysContent({ delays }) {
         </button>
         <button className={`tab ${section === 'non-recues' ? 'active' : ''}`} onClick={() => setSection('non-recues')}>
           Non réceptionnées ({sansReception.length})
+        </button>
+        <button className={`tab ${section === 'sans-delai' ? 'active' : ''}`} onClick={() => setSection('sans-delai')}>
+          Sans délai contractuel ({sansDelaiPrevu.length})
         </button>
       </div>
 
@@ -405,6 +409,53 @@ function DelaysContent({ delays }) {
                         {d.enRetard === true && <span className="badge badge-danger">En retard</span>}
                         {d.enRetard === false && <span className="badge badge-neutral">En attente</span>}
                         {d.enRetard === null && <span className="badge badge-neutral">Sans délai</span>}
+                      </td>
+                      <td className="amount">{formatMontant(d.montant)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+      {/* SECTION: Sans délai contractuel */}
+      {section === 'sans-delai' && (
+        <div className="card full-width" style={{ borderLeft: '4px solid #7b6fa0' }}>
+          <div className="card-title" style={{ color: '#7b6fa0' }}>
+            Commandes sans délai contractuel — réceptionnées ({sansDelaiPrevu.length})
+          </div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: 16 }}>
+            Ces commandes n'ont pas de date de livraison prévue dans le fichier. Le délai réel CMD → Réception est calculé mais ne peut pas être jugé "en retard" ou "à temps".
+          </p>
+          {sansDelaiPrevu.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Aucune commande dans cette catégorie</div>
+          ) : (
+            <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>N° CMD</th>
+                    <th>Fournisseur</th>
+                    <th>Article</th>
+                    <th>Date Cde</th>
+                    <th>Date Réception</th>
+                    <th style={{ textAlign: 'right' }}>Délai réel</th>
+                    <th style={{ textAlign: 'right' }}>Montant TTC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sansDelaiPrevu.map((d, i) => (
+                    <tr key={i}>
+                      <td style={{ fontWeight: 600 }}>{d.numCmd}</td>
+                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
+                      <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet || '—'}</td>
+                      <td>{fmtDate(d.datCde)}</td>
+                      <td>{fmtDate(d.datRec)}</td>
+                      <td className="amount">
+                        <span className={`badge ${d.delaiReel > 90 ? 'badge-danger' : d.delaiReel > 60 ? 'badge-warning' : 'badge-neutral'}`}>
+                          {fmtDuree(d.delaiReel)}
+                        </span>
                       </td>
                       <td className="amount">{formatMontant(d.montant)}</td>
                     </tr>

@@ -458,10 +458,8 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                       <tr key={i}>
                         <td>{c.numCmd}</td>
                         <td style={{ fontSize: '0.78rem' }}>{c.datCde ? new Date(c.datCde).toLocaleDateString('fr-FR') : '—'}</td>
-                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {c.fournisseur}
-                        </td>
-                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        <td>{c.fournisseur}</td>
+                        <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word' }}>
                           {c.article || '—'}
                         </td>
                         <td className="amount">{formatMontant(c.montHT)}</td>
