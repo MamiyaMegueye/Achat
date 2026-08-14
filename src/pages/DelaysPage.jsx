@@ -118,7 +118,8 @@ function DelaysContent({ delays }) {
           </div>
           <div className="kpi-value" style={{ color: tauxRespect >= 70 ? 'var(--success)' : tauxRespect >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{tauxRespect}%</div>
           <div className="kpi-label">Respect délai livraison</div>
-          <div className="kpi-sub">{respecte} à temps · {depasse} en retard · {sansDelai} sans délai</div>
+          <div className="kpi-sub">{respecte} à temps · {depasse} en retard</div>
+          <div className="kpi-sub" style={{ marginTop: 2 }}>{sansDelai} sans délai contractuel (dont {sansDelaiPrevu.length} réceptionnées, {sansDelai - sansDelaiPrevu.length} non réceptionnées)</div>
         </div>
       </div>
 
@@ -426,7 +427,7 @@ function DelaysContent({ delays }) {
             Commandes sans délai contractuel — réceptionnées ({sansDelaiPrevu.length})
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: 16 }}>
-            Ces commandes n'ont pas de date de livraison prévue dans le fichier. Le délai réel CMD → Réception est calculé mais ne peut pas être jugé "en retard" ou "à temps".
+            Sur {sansDelai} commandes sans délai contractuel : {sansDelaiPrevu.length} ont été réceptionnées (affichées ci-dessous avec leur délai réel), {sansDelai - sansDelaiPrevu.length} ne sont pas encore réceptionnées (visibles dans l'onglet "Non réceptionnées"). Ces commandes sont exclues du taux de respect des délais.
           </p>
           {sansDelaiPrevu.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Aucune commande dans cette catégorie</div>

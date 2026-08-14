@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'snde-achats';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 async function getDB() {
   return openDB(DB_NAME, DB_VERSION, {
@@ -13,11 +13,13 @@ async function getDB() {
         bcStore.createIndex('fournisseur', 'fournisseur');
         bcStore.createIndex('structure', 'structure');
       }
-      if (!db.objectStoreNames.contains('suivi_cmd')) {
-        const cmdStore = db.createObjectStore('suivi_cmd', { keyPath: 'numCmd' });
-        cmdStore.createIndex('codeFour', 'codeFour');
-        cmdStore.createIndex('nomFrn', 'nomFrn');
+      if (db.objectStoreNames.contains('suivi_cmd')) {
+        db.deleteObjectStore('suivi_cmd');
       }
+      const cmdStore = db.createObjectStore('suivi_cmd', { keyPath: '_id' });
+      cmdStore.createIndex('numCmd', 'numCmd');
+      cmdStore.createIndex('codeFour', 'codeFour');
+      cmdStore.createIndex('nomFrn', 'nomFrn');
       if (!db.objectStoreNames.contains('import_log')) {
         db.createObjectStore('import_log', { keyPath: 'id', autoIncrement: true });
       }
@@ -79,7 +81,9 @@ export async function importSuiviCmd(rows) {
   let skipped = 0;
 
   for (const row of rows) {
-    const existing = await store.get(row.numCmd);
+    const id = `${row.numCmd}-${row.codeFour || 0}`;
+    row._id = id;
+    const existing = await store.get(id);
     if (!existing) {
       await store.put(row);
       added++;
@@ -91,7 +95,7 @@ export async function importSuiviCmd(rows) {
         (!existing.factDateFact && row.factDateFact)
       );
       if (hasNewData) {
-        await store.put({ ...existing, ...row });
+        await store.put({ ...existing, ...row, _id: id });
         updated++;
       } else {
         skipped++;
