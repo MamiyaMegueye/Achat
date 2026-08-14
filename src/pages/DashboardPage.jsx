@@ -121,7 +121,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
       {/* === Bandeau principal === */}
       <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)',
+          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)',
         }}>
           <div style={{ padding: '16px 18px', borderRight: '1px solid var(--border-light)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -175,19 +175,6 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
             </div>
             <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#a63b32' }}>{formatMontant(kpis.encoursMontant)}</div>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>{kpis.enCours} non payées</div>
-          </div>
-
-          <div style={{ padding: '16px 18px', borderLeft: '1px solid var(--border-light)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: '#e4f2ec', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Users size={13} style={{ color: '#2b6e52' }} />
-              </div>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>Fournisseurs</span>
-            </div>
-            <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#2b6e52' }}>{nbFrnTotalUnique}</div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>
-              <span style={{ color: '#2b6e52', cursor: 'pointer', textDecoration: 'underline dotted' }} onClick={() => { setShowFrn('payes'); setFrnSelected(null); setFrnFilter(''); }}>{nbFrnToutPaye} payés</span> · <span style={{ color: '#a63b32', cursor: 'pointer', textDecoration: 'underline dotted' }} onClick={() => { setShowFrn('impayes'); setFrnSelected(null); setFrnFilter(''); }}>{nbFrnAvecImpaye} avec impayé</span>
-            </div>
           </div>
 
           <div style={{ padding: '16px 18px', borderLeft: '1px solid var(--border-light)' }}>

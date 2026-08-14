@@ -22,6 +22,8 @@ export default function EngagementsPage({ cmds }) {
         datFacture,
         joursAttente,
         moisFacture: `${datFacture.getFullYear()}-${String(datFacture.getMonth() + 1).padStart(2, '0')}`,
+        dateEcheance: new Date(datFacture.getTime() + 90 * 24 * 60 * 60 * 1000),
+        moisEcheance: (() => { const ech = new Date(datFacture.getTime() + 90 * 24 * 60 * 60 * 1000); return `${ech.getFullYear()}-${String(ech.getMonth() + 1).padStart(2, '0')}`; })(),
       };
     })
     .sort((a, b) => a.datFacture - b.datFacture);
@@ -42,7 +44,7 @@ export default function EngagementsPage({ cmds }) {
     ? Math.round(soldes.reduce((s, e) => s + e.delaiPaiement, 0) / soldes.length)
     : 0;
 
-  // Grouper par mois
+  // Grouper par mois de facture
   const parMois = {};
   engagements.forEach(e => {
     if (!parMois[e.moisFacture]) parMois[e.moisFacture] = { mois: e.moisFacture, cmds: [], total: 0, nbFrn: new Set() };
@@ -52,17 +54,28 @@ export default function EngagementsPage({ cmds }) {
   });
   const moisList = Object.values(parMois).sort((a, b) => a.mois.localeCompare(b.mois));
 
+  // Grouper par mois d'échéance (facture + 90j)
+  const parMoisEcheance = {};
+  engagements.forEach(e => {
+    if (!parMoisEcheance[e.moisEcheance]) parMoisEcheance[e.moisEcheance] = { mois: e.moisEcheance, cmds: [], total: 0, nbFrn: new Set() };
+    parMoisEcheance[e.moisEcheance].cmds.push(e);
+    parMoisEcheance[e.moisEcheance].total += e.montTTC;
+    parMoisEcheance[e.moisEcheance].nbFrn.add(e.fournisseur);
+  });
+  const moisEcheanceList = Object.values(parMoisEcheance).sort((a, b) => a.mois.localeCompare(b.mois));
+
   const totalEngagements = engagements.reduce((s, e) => s + e.montTTC, 0);
   const nbFrnTotal = new Set(engagements.map(e => e.fournisseur)).size;
 
   const [selectedMois, setSelectedMois] = useState(null);
+  const [selectedMoisEcheance, setSelectedMoisEcheance] = useState(null);
   const [frnFilter, setFrnFilter] = useState('');
   const [openFrnFilter, setOpenFrnFilter] = useState(false);
 
-  // Commandes du mois sélectionné ou toutes
-  const cmdsAffichees = selectedMois
-    ? engagements.filter(e => e.moisFacture === selectedMois)
-    : engagements;
+  // Commandes filtrées par mois facture et/ou mois échéance
+  let cmdsAffichees = engagements;
+  if (selectedMois) cmdsAffichees = cmdsAffichees.filter(e => e.moisFacture === selectedMois);
+  if (selectedMoisEcheance) cmdsAffichees = cmdsAffichees.filter(e => e.moisEcheance === selectedMoisEcheance);
 
   // Filtrage par fournisseur
   const frnUniques = [...new Set(cmdsAffichees.map(e => e.fournisseur))].sort();
@@ -126,11 +139,19 @@ export default function EngagementsPage({ cmds }) {
 
       {/* Filtres */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-        {/* Filtre mois */}
+        {/* Filtre mois facture */}
         <select value={selectedMois || ''} onChange={e => { setSelectedMois(e.target.value || null); setFrnSelected(new Set()); }}
           style={{ padding: '7px 12px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem', background: selectedMois ? '#f7ece0' : 'white', color: '#333', cursor: 'pointer' }}>
-          <option value="">Tous les mois ({engagements.length})</option>
+          <option value="">Mois facture — tous ({engagements.length})</option>
           {moisList.map(m => (
+            <option key={m.mois} value={m.mois}>{fmtMois(m.mois)} — {m.cmds.length} factures · {formatMontant(m.total)} MRU</option>
+          ))}
+        </select>
+        {/* Filtre mois échéance */}
+        <select value={selectedMoisEcheance || ''} onChange={e => { setSelectedMoisEcheance(e.target.value || null); setFrnSelected(new Set()); }}
+          style={{ padding: '7px 12px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem', background: selectedMoisEcheance ? '#e8f0e4' : 'white', color: '#333', cursor: 'pointer' }}>
+          <option value="">Mois échéance — tous</option>
+          {moisEcheanceList.map(m => (
             <option key={m.mois} value={m.mois}>{fmtMois(m.mois)} — {m.cmds.length} factures · {formatMontant(m.total)} MRU</option>
           ))}
         </select>
@@ -190,6 +211,7 @@ export default function EngagementsPage({ cmds }) {
                 <th>Date Cde</th>
                 <th>Date Réception</th>
                 <th>Date Facture</th>
+                <th>Date échéance</th>
                 <th style={{ textAlign: 'right' }}>Jours d'attente</th>
                 <th style={{ textAlign: 'right' }}>Montant HT</th>
                 <th style={{ textAlign: 'right' }}>Montant TTC</th>
@@ -204,6 +226,7 @@ export default function EngagementsPage({ cmds }) {
                   <td>{fmtDate(e.datCde)}</td>
                   <td>{fmtDate(e.datRec)}</td>
                   <td>{fmtDate(e.datFacture)}</td>
+                  <td style={{ color: e.dateEcheance < today ? '#a63b32' : '#2b6e52', fontWeight: e.dateEcheance < today ? 600 : 400 }}>{fmtDate(e.dateEcheance)}</td>
                   <td className="amount">
                     <span className={`badge ${e.joursAttente > 90 ? 'badge-danger' : e.joursAttente > 60 ? 'badge-warning' : 'badge-neutral'}`}>
                       {e.joursAttente}j
@@ -216,7 +239,7 @@ export default function EngagementsPage({ cmds }) {
             </tbody>
             <tfoot>
               <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border-light)' }}>
-                <td colSpan={7}>Total ({cmdsFilterees.length} factures)</td>
+                <td colSpan={8}>Total ({cmdsFilterees.length} factures)</td>
                 <td className="amount">{formatMontant(cmdsFilterees.reduce((s, e) => s + e.montHT, 0))}</td>
                 <td className="amount">{formatMontant(totalFiltre)}</td>
               </tr>
