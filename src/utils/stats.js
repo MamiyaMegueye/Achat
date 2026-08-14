@@ -346,6 +346,79 @@ export function computeArticleStats(bcs) {
   return { priceEvolution, surstockCandidates, prixComparaison, prixAberrants };
 }
 
+// --- Dépendance fournisseurs / articles ---
+
+export function computeDependencyStats(bcs) {
+  // Fournisseur → articles distincts
+  const frnArticles = {};
+  // Article → fournisseurs distincts
+  const articleFrns = {};
+
+  bcs.forEach(bc => {
+    const frn = bc.fournisseur || 'Inconnu';
+    const code = bc.codeArticle;
+    const label = bc.article || code;
+    if (!code) return;
+
+    if (!frnArticles[frn]) frnArticles[frn] = { nom: frn, articles: new Set(), articleLabels: {}, montantTotal: 0, nbCommandes: 0, numBCs: [], dates: [] };
+    frnArticles[frn].articles.add(code);
+    frnArticles[frn].articleLabels[code] = label;
+    frnArticles[frn].montantTotal += bc.totalHT || 0;
+    frnArticles[frn].nbCommandes++;
+    if (bc.numBC) frnArticles[frn].numBCs.push(bc.numBC);
+    if (bc.date) frnArticles[frn].dates.push(new Date(bc.date));
+
+    if (!articleFrns[code]) articleFrns[code] = { code, label, fournisseurs: new Set(), montantTotal: 0, nbCommandes: 0, numBCs: [], dates: [] };
+    articleFrns[code].fournisseurs.add(frn);
+    articleFrns[code].montantTotal += bc.totalHT || 0;
+    articleFrns[code].nbCommandes++;
+    if (bc.numBC) articleFrns[code].numBCs.push(bc.numBC);
+    if (bc.date) articleFrns[code].dates.push(new Date(bc.date));
+  });
+
+  // Fournisseurs mono-article vs multi
+  const frnList = Object.values(frnArticles).map(f => {
+    const validDates = f.dates.filter(d => !isNaN(d));
+    validDates.sort((a, b) => a - b);
+    return {
+      nom: f.nom,
+      nbArticles: f.articles.size,
+      articles: [...f.articles],
+      articleLabels: f.articleLabels,
+      montantTotal: f.montantTotal,
+      nbCommandes: f.nbCommandes,
+      numBCs: [...new Set(f.numBCs)],
+      dateMin: validDates.length > 0 ? validDates[0] : null,
+      dateMax: validDates.length > 0 ? validDates[validDates.length - 1] : null,
+    };
+  }).sort((a, b) => a.nbArticles - b.nbArticles);
+
+  const monoArticle = frnList.filter(f => f.nbArticles === 1);
+  const multiArticle = frnList.filter(f => f.nbArticles > 1);
+
+  // Articles mono-fournisseur (risque approvisionnement)
+  const artList = Object.values(articleFrns).map(a => {
+    const validDates = a.dates.filter(d => !isNaN(d));
+    validDates.sort((x, y) => x - y);
+    return {
+      code: a.code,
+      label: a.label,
+      nbFournisseurs: a.fournisseurs.size,
+      fournisseurs: [...a.fournisseurs],
+      montantTotal: a.montantTotal,
+      nbCommandes: a.nbCommandes,
+      numBCs: [...new Set(a.numBCs)],
+      dateMin: validDates.length > 0 ? validDates[0] : null,
+      dateMax: validDates.length > 0 ? validDates[validDates.length - 1] : null,
+    };
+  }).sort((a, b) => b.montantTotal - a.montantTotal);
+
+  const monoFournisseur = artList.filter(a => a.nbFournisseurs === 1);
+  const multiFournisseur = artList.filter(a => a.nbFournisseurs > 1);
+
+  return { frnList, monoArticle, multiArticle, artList, monoFournisseur, multiFournisseur };
+}
+
 // --- Alertes paiement > 90 jours ---
 
 export function computePaymentAlerts(cmds) {

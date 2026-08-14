@@ -13,7 +13,8 @@ import { getAllBonsCommande, getAllSuiviCmd, getDataCounts } from './utils/stora
 import {
   computeKPIs, computeDelays, computeSupplierStats,
   computeArticleStats, computePaymentAlerts,
-  computeStructureStats, computeMissingDocs, computeSeasonality
+  computeStructureStats, computeMissingDocs, computeSeasonality,
+  computeDependencyStats
 } from './utils/stats';
 import { Upload } from 'lucide-react';
 
@@ -43,10 +44,11 @@ export default function App() {
         const structureStats = computeStructureStats(bcs);
         const missingDocs = computeMissingDocs(cmds);
         const seasonality = computeSeasonality(cmds);
+        const dependencyStats = computeDependencyStats(bcs);
 
         setStats({
           kpis, delays, supplierStats, articleStats,
-          paymentAlerts, structureStats, missingDocs, cmds, seasonality
+          paymentAlerts, structureStats, missingDocs, cmds, seasonality, dependencyStats
         });
 
         if (activePage === 'import' && counts.bcCount > 0 && counts.cmdCount > 0) {
@@ -100,7 +102,7 @@ export default function App() {
       case 'delays':
         return <DelaysPage delays={stats.delays} />;
       case 'suppliers':
-        return <SuppliersPage supplierStats={stats.supplierStats} />;
+        return <SuppliersPage supplierStats={stats.supplierStats} dependencyStats={stats.dependencyStats} />;
       case 'articles':
         return <ArticlesPage articleStats={stats.articleStats} />;
       // alerts supprimé — intégré dans Vue d'ensemble
