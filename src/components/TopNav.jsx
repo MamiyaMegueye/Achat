@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, Upload, Clock, Users, Package,
-  AlertTriangle, Building2, FileWarning
+  AlertTriangle, Building2, FileWarning, Wallet
 } from 'lucide-react';
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { id: 'delays', label: 'Délais', icon: Clock },
   { id: 'suppliers', label: 'Fournisseurs', icon: Users },
   { id: 'articles', label: 'Articles & Prix', icon: Package },
+  { id: 'engagements', label: 'Engagements', icon: Wallet },
   { id: 'structures', label: 'Structures', icon: Building2 },
   { id: 'anomalies', label: 'Anomalies', icon: FileWarning },
 ];

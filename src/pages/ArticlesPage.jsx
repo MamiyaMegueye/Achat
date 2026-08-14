@@ -46,7 +46,7 @@ export default function ArticlesPage({ articleStats }) {
         </button>
       </div>
 
-      <div className="grid-2">
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
         <div className="card">
           <div className="card-title">Articles avec variation de prix ({filtered.length})</div>
           <div style={{ maxHeight: 400, overflowY: 'auto' }}>
@@ -59,6 +59,7 @@ export default function ArticlesPage({ articleStats }) {
                 <thead>
                   <tr>
                     <th>Article</th>
+                    <th>Objet</th>
                     <th>Évolution PU</th>
                     <th>Cause</th>
                   </tr>
@@ -67,6 +68,8 @@ export default function ArticlesPage({ articleStats }) {
                   {filtered.map((a, i) => {
                     // Construire la chaîne d'évolution avec tous les PU
                     const allPUs = a.entries.map(e => formatMontant(e.pu));
+                    // Tous les objets distincts
+                    const objets = [...new Set(a.entries.map(e => e.objet).filter(Boolean))];
                     return (
                     <tr
                       key={i}
@@ -76,8 +79,13 @@ export default function ArticlesPage({ articleStats }) {
                         background: selectedArticle?.code === a.code ? 'var(--accent-primary-light)' : undefined,
                       }}
                     >
-                      <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {a.label || a.code}
+                      </td>
+                      <td style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word', minWidth: 200 }}>
+                        {objets.length > 0 ? objets.map((o, j) => (
+                          <div key={j} style={{ marginBottom: j < objets.length - 1 ? 3 : 0, paddingLeft: 6, borderLeft: '2px solid #e0d5c5' }}>{o}</div>
+                        )) : '—'}
                       </td>
                       <td style={{ fontSize: '0.78rem' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px 4px' }}>
@@ -141,6 +149,7 @@ export default function ArticlesPage({ articleStats }) {
                     <tr>
                       <th>Date</th>
                       <th>Fournisseur</th>
+                      <th>Objet</th>
                       <th style={{ textAlign: 'right' }}>PU</th>
                       <th style={{ textAlign: 'right' }}>Qté</th>
                     </tr>
@@ -149,7 +158,8 @@ export default function ArticlesPage({ articleStats }) {
                     {selectedArticle.entries.map((e, i) => (
                       <tr key={i}>
                         <td>{e.date ? new Date(e.date).toLocaleDateString('fr-FR') : '—'}</td>
-                        <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.fournisseur}</td>
+                        <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.fournisseur}</td>
+                        <td style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word', minWidth: 180 }}>{e.objet || '—'}</td>
                         <td className="amount">{formatMontant(e.pu)}</td>
                         <td className="amount">{e.qte}</td>
                       </tr>

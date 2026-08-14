@@ -8,6 +8,7 @@ import ArticlesPage from './pages/ArticlesPage';
 import AlertsPage from './pages/AlertsPage';
 import StructuresPage from './pages/StructuresPage';
 import AnomaliesPage from './pages/AnomaliesPage';
+import EngagementsPage from './pages/EngagementsPage';
 import { getAllBonsCommande, getAllSuiviCmd, getDataCounts } from './utils/storage';
 import {
   computeKPIs, computeDelays, computeSupplierStats,
@@ -103,6 +104,8 @@ export default function App() {
       case 'articles':
         return <ArticlesPage articleStats={stats.articleStats} />;
       // alerts supprimé — intégré dans Vue d'ensemble
+      case 'engagements':
+        return <EngagementsPage cmds={stats.cmds} />;
       case 'structures':
         return <StructuresPage structureStats={stats.structureStats} />;
       case 'anomalies':

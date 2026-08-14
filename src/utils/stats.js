@@ -224,6 +224,7 @@ export function computeArticleStats(bcs) {
       pu: bc.pu,
       fournisseur: frn,
       qte: bc.qte,
+      objet: bc.objet || '',
     });
 
     if (!articleVolume[key]) {
