@@ -153,7 +153,7 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
         <div className="card full-width">
           <div style={{ background: '#3d8b6e', color: 'white', padding: '10px 16px', borderRadius: '8px 8px 0 0', margin: '-24px -24px 16px -24px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Écart entre montant facturé (TTC) et montant effectivement payé par ordre de paiement</div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginBottom: 14 }}>
-            Pour chaque ordre de paiement, comparaison entre la somme des montants TTC des commandes et le montant versé. Le taux standard est de 2%.
+            Pour chaque ordre de paiement, comparaison entre la somme des montants TTC des commandes et le montant versé.
           </p>
           <div style={{ maxHeight: 400, overflowY: 'auto' }}>
             <table className="data-table">

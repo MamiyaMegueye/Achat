@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell
 } from 'recharts';
 import {
-  ShoppingCart, PackageCheck, CreditCard, Clock,
+  ShoppingCart, PackageCheck, CreditCard, Clock, Users,
   AlertTriangle, TrendingUp, CheckCircle2, XCircle, X
 } from 'lucide-react';
 import { formatMontant } from '../utils/stats';
@@ -71,6 +71,21 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     }));
   };
 
+  // Fournisseurs payés vs non payés
+  const frnPayes = new Set();
+  const frnNonPayes = new Set();
+  cmds.forEach(c => {
+    const frn = c.nomFrn;
+    if (!frn) return;
+    if (c.paiementDate) frnPayes.add(frn);
+    else frnNonPayes.add(frn);
+  });
+  // Fournisseurs qui ont AU MOINS une commande non payée
+  const frnAvecImpaye = [...frnNonPayes].filter(f => !frnPayes.has(f) || frnNonPayes.has(f));
+  const nbFrnTotalUnique = new Set([...frnPayes, ...frnNonPayes]).size;
+  const nbFrnToutPaye = [...frnPayes].filter(f => !frnNonPayes.has(f)).length;
+  const nbFrnAvecImpaye = nbFrnTotalUnique - nbFrnToutPaye;
+
   const barColors = ['#b06830', '#3d8b6e', '#7b6fa0', '#c48520', '#5a9bb5', '#d4975a', '#9b8ec4', '#c44a3f'];
 
   return (
@@ -83,7 +98,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
       {/* === Bandeau principal === */}
       <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)',
         }}>
           <div style={{ padding: '16px 18px', borderRight: '1px solid var(--border-light)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -137,6 +152,19 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
             </div>
             <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#a63b32' }}>{formatMontant(kpis.encoursMontant)}</div>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>{kpis.enCours} non payées</div>
+          </div>
+
+          <div style={{ padding: '16px 18px', borderLeft: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: '#e4f2ec', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Users size={13} style={{ color: '#2b6e52' }} />
+              </div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>Fournisseurs</span>
+            </div>
+            <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#2b6e52' }}>{nbFrnTotalUnique}</div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>
+              <span style={{ color: '#2b6e52' }}>{nbFrnToutPaye} payés</span> · <span style={{ color: '#a63b32' }}>{nbFrnAvecImpaye} avec impayé</span>
+            </div>
           </div>
         </div>
       </div>
@@ -396,6 +424,8 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
           .map(c => ({
             numCmd: c.numCmd,
             fournisseur: c.nomFrn,
+            datCde: c.datCde,
+            article: c.obsCde,
             montHT: c.montHT,
             montTTC: c.montTTC,
             ecart: c.montTTC - c.montHT,
@@ -412,7 +442,9 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                 <thead>
                   <tr>
                     <th>N° CMD</th>
+                    <th>Date</th>
                     <th>Fournisseur</th>
+                    <th>Article</th>
                     <th style={{ textAlign: 'right' }}>Mont. HT</th>
                     <th style={{ textAlign: 'right' }}>Mont. TTC</th>
                     <th style={{ textAlign: 'right' }}>Taxe</th>
@@ -425,8 +457,12 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                     return (
                       <tr key={i}>
                         <td>{c.numCmd}</td>
-                        <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <td style={{ fontSize: '0.78rem' }}>{c.datCde ? new Date(c.datCde).toLocaleDateString('fr-FR') : '—'}</td>
+                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {c.fournisseur}
+                        </td>
+                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                          {c.article || '—'}
                         </td>
                         <td className="amount">{formatMontant(c.montHT)}</td>
                         <td className="amount">{formatMontant(c.montTTC)}</td>
