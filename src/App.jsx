@@ -16,13 +16,31 @@ import {
   computeStructureStats, computeMissingDocs, computeSeasonality,
   computeDependencyStats
 } from './utils/stats';
-import { Upload } from 'lucide-react';
+import { Upload, FileDown } from 'lucide-react';
+import { exportAllPagesPdf } from './utils/exportPdf';
 
 export default function App() {
   const [activePage, setActivePage] = useState('import');
   const [dataCounts, setDataCounts] = useState({ bcCount: 0, cmdCount: 0 });
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState('');
+
+  const handleExportPdf = async () => {
+    const originalPage = activePage;
+    setExporting(true);
+    try {
+      await exportAllPagesPdf(setActivePage, (current, total, label) => {
+        setExportProgress(`${label} (${current}/${total})`);
+      });
+    } catch (err) {
+      console.error('Export PDF error:', err);
+    }
+    setActivePage(originalPage);
+    setExporting(false);
+    setExportProgress('');
+  };
 
   const refreshData = useCallback(async () => {
     setLoading(true);
@@ -123,7 +141,26 @@ export default function App() {
         activePage={activePage}
         onNavigate={setActivePage}
         dataLoaded={dataLoaded}
+        onExportPdf={handleExportPdf}
+        exporting={exporting}
       />
+      {exporting && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.4)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 12, padding: '30px 50px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '1rem', fontWeight: 600, color: '#333', marginBottom: 8 }}>
+              Export PDF en cours...
+            </div>
+            <div style={{ fontSize: '0.85rem', color: '#8a5220' }}>{exportProgress}</div>
+          </div>
+        </div>
+      )}
       <main className="main-content">
         {loading ? (
           <div style={{

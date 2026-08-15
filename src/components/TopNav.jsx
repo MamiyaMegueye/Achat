@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, Upload, Clock, Users, Package,
-  AlertTriangle, Building2, FileWarning, Wallet
+  AlertTriangle, Building2, FileWarning, Wallet, FileDown
 } from 'lucide-react';
 
 const navItems = [
@@ -15,7 +15,7 @@ const navItems = [
   { id: 'anomalies', label: 'Anomalies', icon: FileWarning },
 ];
 
-export default function TopNav({ activePage, onNavigate, dataLoaded }) {
+export default function TopNav({ activePage, onNavigate, dataLoaded, onExportPdf, exporting }) {
   return (
     <header className="top-nav">
       {/* Brand */}
@@ -45,6 +45,17 @@ export default function TopNav({ activePage, onNavigate, dataLoaded }) {
             </button>
           );
         })}
+        {dataLoaded && (
+          <button
+            onClick={onExportPdf}
+            disabled={exporting}
+            className="top-nav-tab"
+            style={{ marginLeft: 'auto', background: exporting ? '#ddd' : '#8a5220', color: 'white', borderRadius: 6, padding: '5px 14px' }}
+          >
+            <FileDown size={15} />
+            <span>{exporting ? 'Export...' : 'Exporter PDF'}</span>
+          </button>
+        )}
       </nav>
     </header>
   );
