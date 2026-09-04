@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Cell
 } from 'recharts';
-import { Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle2, Search } from 'lucide-react';
 import { formatMontant } from '../utils/stats';
 
 function fmtDate(d) {
@@ -43,10 +43,79 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// === Barre de filtres réutilisable : recherche + statut + jours min/max ===
+function FilterBar({ search, setSearch, statut, setStatut, statutOptions, joursMin, setJoursMin, joursMax, setJoursMax, showJoursFilter = true }) {
+  const hasFilters = search || statut || joursMin !== '' || joursMax !== '';
+  return (
+    <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ position: 'relative', flex: '1 1 220px' }}>
+        <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+        <input
+          type="text"
+          placeholder="N° CMD, fournisseur, article..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: '100%', padding: '7px 10px 7px 30px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.8rem' }}
+        />
+      </div>
+      {statutOptions && (
+        <select value={statut} onChange={e => setStatut(e.target.value)}
+          style={{ padding: '7px 10px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.8rem', background: 'white', minWidth: 150 }}>
+          <option value="">Tous les statuts</option>
+          {statutOptions.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      )}
+      {showJoursFilter && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Délai (j)</span>
+          <input type="number" placeholder="min" value={joursMin} onChange={e => setJoursMin(e.target.value)}
+            style={{ width: 64, padding: '7px 8px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.8rem' }} />
+          <span style={{ color: 'var(--text-muted)' }}>–</span>
+          <input type="number" placeholder="max" value={joursMax} onChange={e => setJoursMax(e.target.value)}
+            style={{ width: 64, padding: '7px 8px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.8rem' }} />
+        </div>
+      )}
+      {hasFilters && (
+        <button
+          onClick={() => { setSearch(''); if (setStatut) setStatut(''); setJoursMin(''); setJoursMax(''); }}
+          style={{ padding: '7px 10px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.75rem', background: '#f5f0e8', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+          Réinitialiser
+        </button>
+      )}
+    </div>
+  );
+}
+
+function useTableFilter(rows, { searchFields = [], joursField = 'jours' } = {}) {
+  const [search, setSearch] = useState('');
+  const [statut, setStatut] = useState('');
+  const [joursMin, setJoursMin] = useState('');
+  const [joursMax, setJoursMax] = useState('');
+
+  const filtered = useMemo(() => {
+    let r = rows;
+    if (search.trim()) {
+      const s = search.trim().toLowerCase();
+      r = r.filter(row => searchFields.some(f => String(row[f] || '').toLowerCase().includes(s)));
+    }
+    if (statut) {
+      r = r.filter(row => row.statut === statut);
+    }
+    if (joursMin !== '') {
+      r = r.filter(row => row[joursField] != null && row[joursField] >= Number(joursMin));
+    }
+    if (joursMax !== '') {
+      r = r.filter(row => row[joursField] != null && row[joursField] <= Number(joursMax));
+    }
+    return r;
+  }, [rows, search, statut, joursMin, joursMax, searchFields, joursField]);
+
+  return { filtered, search, setSearch, statut, setStatut, joursMin, setJoursMin, joursMax, setJoursMax };
+}
+
 function DelaysContent({ delays }) {
   const [section, setSection] = useState('livraison');
 
-  // Safe access with defaults
   const respectDelai = delays.respectDelai || { respecte: 0, depasse: 0, sansDelai: 0 };
   const { respecte = 0, depasse = 0, sansDelai = 0 } = respectDelai;
   const total = respecte + depasse;
@@ -78,6 +147,74 @@ function DelaysContent({ delays }) {
     count: delaiRecPaiement.data.filter(d => d.jours >= b.min && d.jours <= b.max).length,
     fill: b.color,
   }));
+
+  // === Table fusionnée : Livraisons en retard + dans les temps ===
+  const livraisonsRows = useMemo(() => {
+    const retard = livraisonsEnRetard.map(d => ({
+      ...d, statut: 'En retard', jours: d.joursRetard,
+    }));
+    const temps = livraisonsDansLesTemps.map(d => ({
+      ...d, statut: 'À temps', jours: -d.joursAvance,
+    }));
+    return [...retard, ...temps];
+  }, [livraisonsEnRetard, livraisonsDansLesTemps]);
+
+  const livraisonsFilter = useTableFilter(livraisonsRows, {
+    searchFields: ['numCmd', 'fournisseur', 'objet'],
+    joursField: 'jours',
+  });
+
+  // === Table fusionnée : Non réceptionnées + Sans date de livraison ===
+  const nonRecuesRows = useMemo(() => {
+    const nonRecues = sansReception.map(d => ({
+      numCmd: d.numCmd, fournisseur: d.fournisseur, objet: d.objet,
+      datCde: d.datCde, dateLivraison: d.delaiPrevu, datRec: null,
+      statut: d.enRetard === true ? 'Non réceptionnée - en retard'
+        : d.enRetard === false ? 'Non réceptionnée - en attente'
+        : 'Non réceptionnée - sans délai',
+      jours: d.joursDepuisCde, montant: d.montant,
+    }));
+    const sansDelai = sansDelaiPrevu.map(d => ({
+      numCmd: d.numCmd, fournisseur: d.fournisseur, objet: d.objet,
+      datCde: d.datCde, dateLivraison: null, datRec: d.datRec,
+      statut: 'Réceptionnée - sans délai prévu',
+      jours: d.delaiReel, montant: d.montant,
+    }));
+    return [...nonRecues, ...sansDelai];
+  }, [sansReception, sansDelaiPrevu]);
+
+  const nonRecuesFilter = useTableFilter(nonRecuesRows, {
+    searchFields: ['numCmd', 'fournisseur', 'objet'],
+    joursField: 'jours',
+  });
+
+  // === Filtres pour Commande → Réception et Réception → Paiement ===
+  const cdeRecFilter = useTableFilter(delaiCdeRec.data, {
+    searchFields: ['numCmd', 'fournisseur', 'objet'],
+    joursField: 'jours',
+  });
+  const recPaieFilter = useTableFilter(delaiRecPaiement.data, {
+    searchFields: ['numCmd', 'fournisseur', 'objet'],
+    joursField: 'jours',
+  });
+
+  const statutColors = {
+    'En retard': { color: '#a63b32', bg: '#fae8e6' },
+    'À temps': { color: '#2b6e52', bg: '#e4f2ec' },
+    'Non réceptionnée - en retard': { color: '#a63b32', bg: '#fae8e6' },
+    'Non réceptionnée - en attente': { color: '#a06a25', bg: '#fdf3e4' },
+    'Non réceptionnée - sans délai': { color: '#7b6fa0', bg: '#edeaf4' },
+    'Réceptionnée - sans délai prévu': { color: '#5a9bb5', bg: '#e5f1f6' },
+  };
+
+  const StatutBadge = ({ statut }) => {
+    const sc = statutColors[statut] || { color: 'var(--text-secondary)', bg: 'var(--border-light)' };
+    return (
+      <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: '0.68rem', fontWeight: 600, color: sc.color, background: sc.bg, whiteSpace: 'nowrap' }}>
+        {statut}
+      </span>
+    );
+  };
 
   return (
     <div>
@@ -145,7 +282,7 @@ function DelaysContent({ delays }) {
       {/* Tabs */}
       <div className="tabs">
         <button className={`tab ${section === 'livraison' ? 'active' : ''}`} onClick={() => setSection('livraison')}>
-          Livraisons en retard ({livraisonsEnRetard.length})
+          Livraisons ({livraisonsRows.length})
         </button>
         <button className={`tab ${section === 'cde-rec' ? 'active' : ''}`} onClick={() => setSection('cde-rec')}>
           Commande → Réception
@@ -154,109 +291,72 @@ function DelaysContent({ delays }) {
           Réception → Paiement
         </button>
         <button className={`tab ${section === 'non-recues' ? 'active' : ''}`} onClick={() => setSection('non-recues')}>
-          Non réceptionnées ({sansReception.length})
-        </button>
-        <button className={`tab ${section === 'sans-delai' ? 'active' : ''}`} onClick={() => setSection('sans-delai')}>
-          Sans date de livraison ({sansDelaiPrevu.length})
+          Non réceptionnées ({nonRecuesRows.length})
         </button>
       </div>
 
-      {/* SECTION: Livraisons en retard */}
+      {/* SECTION: Livraisons (fusion retard + à temps) */}
       {section === 'livraison' && (
-        <>
-          <div className="card full-width" style={{ borderLeft: '4px solid var(--danger)' }}>
-            <div className="card-title" style={{ color: 'var(--danger)' }}>
-              Livraisons en retard — réceptionnées après la date prévue ({livraisonsEnRetard.length})
-            </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: 16 }}>
-              Commandes livrées après la date contractuelle. Le retard indique le dépassement au-delà du délai prévu.
-            </p>
-            {livraisonsEnRetard.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 40, color: 'var(--success)' }}>Aucune livraison en retard</div>
-            ) : (
-              <div style={{ maxHeight: 450, overflowY: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>N° CMD</th>
-                      <th>Fournisseur</th>
-                      <th>Article</th>
-                      <th>Date Cde</th>
-                      <th>Délai prévu</th>
-                      <th>Date réception</th>
-                      <th style={{ textAlign: 'right' }}>Retard</th>
-                      <th style={{ textAlign: 'right' }}>Montant TTC</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {livraisonsEnRetard.map((d, i) => (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 600 }}>{d.numCmd}</td>
-                        <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
-                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet || '—'}</td>
-                        <td>{fmtDate(d.datCde)}</td>
-                        <td>{fmtDate(d.delaiPrevu)}</td>
-                        <td style={{ color: 'var(--danger)' }}>{fmtDate(d.datRec)}</td>
-                        <td className="amount">
-                          <span className={`badge ${d.joursRetard > 30 ? 'badge-danger' : 'badge-warning'}`}>
-                            +{fmtDuree(d.joursRetard)}
-                          </span>
-                        </td>
-                        <td className="amount">{formatMontant(d.montant)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+        <div className="card full-width">
+          <div className="card-title">
+            Suivi des livraisons <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— {livraisonsFilter.filtered.length} résultat(s)</span>
           </div>
-
-          {livraisonsDansLesTemps.length > 0 && (
-            <div className="card full-width" style={{ borderLeft: '4px solid var(--success)' }}>
-              <div className="card-title" style={{ color: 'var(--success)' }}>
-                Livraisons dans les temps ({livraisonsDansLesTemps.length})
-              </div>
-              <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>N° CMD</th>
-                      <th>Fournisseur</th>
-                      <th>Article</th>
-                      <th>Date Cde</th>
-                      <th>Délai prévu</th>
-                      <th>Date réception</th>
-                      <th style={{ textAlign: 'right' }}>Avance</th>
+          <FilterBar
+            search={livraisonsFilter.search} setSearch={livraisonsFilter.setSearch}
+            statut={livraisonsFilter.statut} setStatut={livraisonsFilter.setStatut}
+            statutOptions={['En retard', 'À temps']}
+            joursMin={livraisonsFilter.joursMin} setJoursMin={livraisonsFilter.setJoursMin}
+            joursMax={livraisonsFilter.joursMax} setJoursMax={livraisonsFilter.setJoursMax}
+          />
+          {livraisonsFilter.filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Aucun résultat</div>
+          ) : (
+            <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>N° CMD</th>
+                    <th>Fournisseur</th>
+                    <th>Article</th>
+                    <th>Date Cde</th>
+                    <th>Délai prévu</th>
+                    <th>Date réception</th>
+                    <th style={{ textAlign: 'right' }}>Écart</th>
+                    <th>Statut</th>
+                    <th style={{ textAlign: 'right' }}>Montant TTC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {livraisonsFilter.filtered.map((d, i) => (
+                    <tr key={i}>
+                      <td style={{ fontWeight: 600 }}>{d.numCmd}</td>
+                      <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
+                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet || '—'}</td>
+                      <td style={{ fontSize: '0.78rem' }}>{fmtDate(d.datCde)}</td>
+                      <td style={{ fontSize: '0.78rem' }}>{fmtDate(d.delaiPrevu)}</td>
+                      <td style={{ fontSize: '0.78rem', color: d.statut === 'En retard' ? 'var(--danger)' : 'var(--success)' }}>{fmtDate(d.datRec)}</td>
+                      <td className="amount">
+                        <span className={`badge ${d.statut === 'En retard' ? (d.jours > 30 ? 'badge-danger' : 'badge-warning') : 'badge-success'}`}>
+                          {d.statut === 'En retard' ? '+' : '-'}{fmtDuree(Math.abs(d.jours))}
+                        </span>
+                      </td>
+                      <td><StatutBadge statut={d.statut} /></td>
+                      <td className="amount">{formatMontant(d.montant)}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {livraisonsDansLesTemps.slice(0, 30).map((d, i) => (
-                      <tr key={i}>
-                        <td>{d.numCmd}</td>
-                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
-                        <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet || '—'}</td>
-                        <td>{fmtDate(d.datCde)}</td>
-                        <td>{fmtDate(d.delaiPrevu)}</td>
-                        <td style={{ color: 'var(--success)' }}>{fmtDate(d.datRec)}</td>
-                        <td className="amount">
-                          <span className="badge badge-success">-{fmtDuree(d.joursAvance)}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* SECTION: Commande → Réception */}
       {section === 'cde-rec' && (
-        <div className="grid-2">
-          <div className="card">
+        <>
+          <div className="card full-width">
             <div className="card-title">Distribution — Moyenne : {fmtDuree(delaiCdeRec.moyenne)}</div>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={histoCdeRec}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
                 <XAxis dataKey="range" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
@@ -270,9 +370,16 @@ function DelaysContent({ delays }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="card">
-            <div className="card-title">Top 30 — plus longues à réceptionner</div>
-            <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+          <div className="card full-width">
+            <div className="card-title">
+              Détail des commandes <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— {cdeRecFilter.filtered.length} résultat(s)</span>
+            </div>
+            <FilterBar
+              search={cdeRecFilter.search} setSearch={cdeRecFilter.setSearch}
+              joursMin={cdeRecFilter.joursMin} setJoursMin={cdeRecFilter.setJoursMin}
+              joursMax={cdeRecFilter.joursMax} setJoursMax={cdeRecFilter.setJoursMax}
+            />
+            <div style={{ maxHeight: 450, overflowY: 'auto' }}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -286,7 +393,7 @@ function DelaysContent({ delays }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {delaiCdeRec.data.slice(0, 30).map((d, i) => (
+                  {cdeRecFilter.filtered.map((d, i) => (
                     <tr key={i}>
                       <td style={{ fontWeight: 500 }}>{d.numCmd}</td>
                       <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
@@ -305,15 +412,15 @@ function DelaysContent({ delays }) {
               </table>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* SECTION: Réception → Paiement */}
       {section === 'rec-paie' && (
-        <div className="grid-2">
-          <div className="card">
+        <>
+          <div className="card full-width">
             <div className="card-title">Distribution — Moyenne : {fmtDuree(delaiRecPaiement.moyenne)} · Délai réglementaire : 90j</div>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={histoRecPaie}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
                 <XAxis dataKey="range" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
@@ -327,9 +434,16 @@ function DelaysContent({ delays }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="card">
-            <div className="card-title">Top 30 — paiements les plus longs</div>
-            <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+          <div className="card full-width">
+            <div className="card-title">
+              Détail des paiements <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— {recPaieFilter.filtered.length} résultat(s)</span>
+            </div>
+            <FilterBar
+              search={recPaieFilter.search} setSearch={recPaieFilter.setSearch}
+              joursMin={recPaieFilter.joursMin} setJoursMin={recPaieFilter.setJoursMin}
+              joursMax={recPaieFilter.joursMax} setJoursMax={recPaieFilter.setJoursMax}
+            />
+            <div style={{ maxHeight: 450, overflowY: 'auto' }}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -343,7 +457,7 @@ function DelaysContent({ delays }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {delaiRecPaiement.data.slice(0, 30).map((d, i) => (
+                  {recPaieFilter.filtered.map((d, i) => (
                     <tr key={i}>
                       <td style={{ fontWeight: 500 }}>{d.numCmd}</td>
                       <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
@@ -368,20 +482,32 @@ function DelaysContent({ delays }) {
               </table>
             </div>
           </div>
-        </div>
+        </>
       )}
 
-      {/* SECTION: Non réceptionnées */}
+      {/* SECTION: Non réceptionnées (fusion avec sans date de livraison) */}
       {section === 'non-recues' && (
-        <div className="card full-width" style={{ borderLeft: '4px solid var(--warning)' }}>
+        <div className="card full-width">
           <div className="card-title">
-            Commandes non réceptionnées ({sansReception.length})
+            Commandes non réceptionnées & sans délai prévu <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— {nonRecuesFilter.filtered.length} résultat(s)</span>
           </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: 16 }}>
-            Commandes passées sans réception enregistrée. Les lignes en rouge ont dépassé le délai prévu.
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: 12 }}>
+            Regroupe les commandes sans réception enregistrée et celles réceptionnées sans date de livraison prévue au départ.
           </p>
-          {sansReception.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--success)' }}>Toutes les commandes ont été réceptionnées</div>
+          <FilterBar
+            search={nonRecuesFilter.search} setSearch={nonRecuesFilter.setSearch}
+            statut={nonRecuesFilter.statut} setStatut={nonRecuesFilter.setStatut}
+            statutOptions={[
+              'Non réceptionnée - en retard',
+              'Non réceptionnée - en attente',
+              'Non réceptionnée - sans délai',
+              'Réceptionnée - sans délai prévu',
+            ]}
+            joursMin={nonRecuesFilter.joursMin} setJoursMin={nonRecuesFilter.setJoursMin}
+            joursMax={nonRecuesFilter.joursMax} setJoursMax={nonRecuesFilter.setJoursMax}
+          />
+          {nonRecuesFilter.filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Aucun résultat</div>
           ) : (
             <div style={{ maxHeight: 500, overflowY: 'auto' }}>
               <table className="data-table">
@@ -391,73 +517,24 @@ function DelaysContent({ delays }) {
                     <th>Fournisseur</th>
                     <th>Article</th>
                     <th>Date Cde</th>
-                    <th>Délai prévu</th>
-                    <th style={{ textAlign: 'right' }}>Depuis Cde</th>
+                    <th>Date livraison prévue</th>
+                    <th>Date réception</th>
+                    <th style={{ textAlign: 'right' }}>Délai (j)</th>
                     <th>Statut</th>
                     <th style={{ textAlign: 'right' }}>Montant TTC</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sansReception.map((d, i) => (
-                    <tr key={i} style={{ background: d.enRetard ? 'var(--danger-light)' : undefined }}>
-                      <td style={{ fontWeight: 600 }}>{d.numCmd}</td>
-                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
-                      <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet}</td>
-                      <td>{fmtDate(d.datCde)}</td>
-                      <td>{fmtDate(d.delaiPrevu)}</td>
-                      <td className="amount">{d.joursDepuisCde != null ? fmtDuree(d.joursDepuisCde) : '—'}</td>
-                      <td>
-                        {d.enRetard === true && <span className="badge badge-danger">En retard</span>}
-                        {d.enRetard === false && <span className="badge badge-neutral">En attente</span>}
-                        {d.enRetard === null && <span className="badge badge-neutral">Sans délai</span>}
-                      </td>
-                      <td className="amount">{formatMontant(d.montant)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-      {/* SECTION: Sans date de livraison */}
-      {section === 'sans-delai' && (
-        <div className="card full-width" style={{ borderLeft: '4px solid #7b6fa0' }}>
-          <div className="card-title" style={{ color: '#7b6fa0' }}>
-            Commandes sans date de livraison — réceptionnées ({sansDelaiPrevu.length})
-          </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: 16 }}>
-            Sur {sansDelai} commandes sans date de livraison : {sansDelaiPrevu.length} ont été réceptionnées (affichées ci-dessous avec leur délai réel), {sansDelai - sansDelaiPrevu.length} ne sont pas encore réceptionnées (visibles dans l'onglet "Non réceptionnées"). Ces commandes sont exclues du taux de respect des délais.
-          </p>
-          {sansDelaiPrevu.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Aucune commande dans cette catégorie</div>
-          ) : (
-            <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>N° CMD</th>
-                    <th>Fournisseur</th>
-                    <th>Article</th>
-                    <th>Date Cde</th>
-                    <th>Date Réception</th>
-                    <th style={{ textAlign: 'right' }}>Délai réel</th>
-                    <th style={{ textAlign: 'right' }}>Montant TTC</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sansDelaiPrevu.map((d, i) => (
+                  {nonRecuesFilter.filtered.map((d, i) => (
                     <tr key={i}>
                       <td style={{ fontWeight: 600 }}>{d.numCmd}</td>
-                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
-                      <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet || '—'}</td>
-                      <td>{fmtDate(d.datCde)}</td>
-                      <td>{fmtDate(d.datRec)}</td>
-                      <td className="amount">
-                        <span className={`badge ${d.delaiReel > 90 ? 'badge-danger' : d.delaiReel > 60 ? 'badge-warning' : 'badge-neutral'}`}>
-                          {fmtDuree(d.delaiReel)}
-                        </span>
-                      </td>
+                      <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.fournisseur}</td>
+                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{d.objet || '—'}</td>
+                      <td style={{ fontSize: '0.78rem' }}>{fmtDate(d.datCde)}</td>
+                      <td style={{ fontSize: '0.78rem' }}>{fmtDate(d.dateLivraison)}</td>
+                      <td style={{ fontSize: '0.78rem' }}>{fmtDate(d.datRec)}</td>
+                      <td className="amount">{d.jours != null ? fmtDuree(d.jours) : '—'}</td>
+                      <td><StatutBadge statut={d.statut} /></td>
                       <td className="amount">{formatMontant(d.montant)}</td>
                     </tr>
                   ))}
