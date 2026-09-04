@@ -118,7 +118,7 @@ export default function App() {
           seasonality={stats.seasonality}
         />;
       case 'delays':
-        return <DelaysPage delays={stats.delays} />;
+        return <DelaysPage delays={stats.delays} cmds={stats.cmds} />;
       case 'suppliers':
         return <SuppliersPage supplierStats={stats.supplierStats} dependencyStats={stats.dependencyStats} />;
       case 'articles':

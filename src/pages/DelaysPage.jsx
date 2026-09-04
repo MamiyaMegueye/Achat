@@ -113,7 +113,7 @@ function useTableFilter(rows, { searchFields = [], joursField = 'jours' } = {}) 
   return { filtered, search, setSearch, statut, setStatut, joursMin, setJoursMin, joursMax, setJoursMax };
 }
 
-function DelaysContent({ delays }) {
+function DelaysContent({ delays, cmds = [] }) {
   const [section, setSection] = useState('livraison');
 
   const respectDelai = delays.respectDelai || { respecte: 0, depasse: 0, sansDelai: 0 };
@@ -164,7 +164,7 @@ function DelaysContent({ delays }) {
     joursField: 'jours',
   });
 
-  // === Table fusionnée : Non réceptionnées + Sans date de livraison ===
+  // === Table fusionnée : Non réceptionnées + Sans date de livraison + Annulées ===
   const nonRecuesRows = useMemo(() => {
     const nonRecues = sansReception.map(d => ({
       numCmd: d.numCmd, fournisseur: d.fournisseur, objet: d.objet,
@@ -180,8 +180,17 @@ function DelaysContent({ delays }) {
       statut: 'Réceptionnée - sans délai prévu',
       jours: d.delaiReel, montant: d.montant,
     }));
-    return [...nonRecues, ...sansDelai];
-  }, [sansReception, sansDelaiPrevu]);
+    // Commandes annulées : montant explicitement à 0 (HT et TTC), non réceptionnées
+    const annulees = cmds
+      .filter(c => c.montHT === 0 && c.montTTC === 0 && !c.datRec)
+      .map(c => ({
+        numCmd: c.numCmd, fournisseur: c.nomFrn, objet: c.obsCde,
+        datCde: c.datCde, dateLivraison: null, datRec: null,
+        statut: 'Annulée',
+        jours: null, montant: 0,
+      }));
+    return [...nonRecues, ...sansDelai, ...annulees];
+  }, [sansReception, sansDelaiPrevu, cmds]);
 
   const nonRecuesFilter = useTableFilter(nonRecuesRows, {
     searchFields: ['numCmd', 'fournisseur', 'objet'],
@@ -205,6 +214,7 @@ function DelaysContent({ delays }) {
     'Non réceptionnée - en attente': { color: '#a06a25', bg: '#fdf3e4' },
     'Non réceptionnée - sans délai': { color: '#7b6fa0', bg: '#edeaf4' },
     'Réceptionnée - sans délai prévu': { color: '#5a9bb5', bg: '#e5f1f6' },
+    'Annulée': { color: '#8a8a8a', bg: '#eeeeee' },
   };
 
   const StatutBadge = ({ statut }) => {
@@ -502,6 +512,7 @@ function DelaysContent({ delays }) {
               'Non réceptionnée - en attente',
               'Non réceptionnée - sans délai',
               'Réceptionnée - sans délai prévu',
+              'Annulée',
             ]}
             joursMin={nonRecuesFilter.joursMin} setJoursMin={nonRecuesFilter.setJoursMin}
             joursMax={nonRecuesFilter.joursMax} setJoursMax={nonRecuesFilter.setJoursMax}
