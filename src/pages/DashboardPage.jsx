@@ -1,17 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell
-} from 'recharts';
-import {
-  ShoppingCart, PackageCheck, CreditCard, Clock, Users,
-  AlertTriangle, TrendingUp, CheckCircle2, XCircle, X, Ban, Filter
+  ShoppingCart, CreditCard, PackageCheck, AlertTriangle, Ban, X, Search, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { formatMontant } from '../utils/stats';
 
 export default function DashboardPage({ kpis, delays, supplierStats, paymentAlerts, cmds = [], seasonality = [] }) {
 
   const [selectedPipeline, setSelectedPipeline] = useState(null);
-  const [selectedFrn, setSelectedFrn] = useState(null);
+  const [showAnnulees, setShowAnnulees] = useState(null); // null, 'annulees', 'sansMontant'
+
+  // Recherche + filtres du tableau de suivi
+  const [search, setSearch] = useState('');
+  const [statutFilter, setStatutFilter] = useState('');
+  const [sortKey, setSortKey] = useState('datCde');
+  const [sortDir, setSortDir] = useState('desc');
 
   const statusData = [
     { name: 'Payées', value: kpis.payees, color: '#3d8b6e', bg: '#e4f2ec' },
@@ -21,12 +23,6 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
   ].filter(d => d.value > 0);
 
   const pctPayees = Math.round(kpis.payees / kpis.totalCmds * 100);
-  const pctRespect = delays.respectDelai.respecte + delays.respectDelai.depasse > 0
-    ? Math.round(delays.respectDelai.respecte / (delays.respectDelai.respecte + delays.respectDelai.depasse) * 100)
-    : 0;
-
-  const top8 = supplierStats.slice(0, 8);
-  const maxMontant = top8.length > 0 ? top8[0].montantTotal : 1;
 
   const CircleProgress = ({ pct, color, bgColor, size = 54, stroke = 5 }) => {
     const r = (size - stroke) / 2;
@@ -71,45 +67,76 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     }));
   };
 
-  // Fournisseurs payés vs non payés — détail par fournisseur
-  const frnPayes = new Set();
-  const frnNonPayes = new Set();
-  const frnDetail = {};
-  cmds.forEach(c => {
-    const frn = c.nomFrn;
-    if (!frn) return;
-    if (c.paiementDate) frnPayes.add(frn);
-    else if (c.datRec) frnNonPayes.add(frn); // impayé = livré mais pas payé
-    if (!frnDetail[frn]) frnDetail[frn] = { nom: frn, cmdsPayees: [], cmdsNonPayees: [], totalPaye: 0, totalNonPaye: 0 };
-    if (c.paiementDate) {
-      frnDetail[frn].cmdsPayees.push(c);
-      frnDetail[frn].totalPaye += c.montTTC || 0;
-    } else if (c.datRec) {
-      frnDetail[frn].cmdsNonPayees.push(c);
-      frnDetail[frn].totalNonPaye += c.montTTC || 0;
-    }
-  });
-  const nbFrnTotalUnique = new Set([...frnPayes, ...frnNonPayes]).size;
-  const nbFrnToutPaye = [...frnPayes].filter(f => !frnNonPayes.has(f)).length;
-  const nbFrnAvecImpaye = nbFrnTotalUnique - nbFrnToutPaye;
-
   // Commandes annulées (montant explicitement = 0) vs sans montant (vide/null)
   const listeAnnulees = cmds.filter(c => (c.montTTC === 0 || c.montHT === 0) && c.montTTC != null && c.montHT != null);
   const listeSansMontant = cmds.filter(c => c.montTTC == null && c.montHT == null);
   const cmdsAnnulees = listeAnnulees.length;
   const cmdsSansMontant = listeSansMontant.length;
-  const [showAnnulees, setShowAnnulees] = useState(null); // null, 'annulees', 'sansMontant'
-  const [showFrn, setShowFrn] = useState(null); // null, 'payes', 'impayes'
-  const [frnFilter, setFrnFilter] = useState('');
-  const [frnSelected, setFrnSelected] = useState(null);
-  const [frnDateFrom, setFrnDateFrom] = useState('');
-  const [frnDateTo, setFrnDateTo] = useState('');
-  // Filtres colonnes type Excel pour impayés
-  const [colFilters, setColFilters] = useState({});
-  const [openColFilter, setOpenColFilter] = useState(null);
-  const [showAlerts, setShowAlerts] = useState(false);
 
-  const barColors = ['#b06830', '#3d8b6e', '#7b6fa0', '#c48520', '#5a9bb5', '#d4975a', '#9b8ec4', '#c44a3f'];
+  // Statut dérivé pour chaque commande
+  const getStatut = (c) => {
+    if (c.paiementDate) return 'Payée';
+    if (c.factDateFact) return 'Facturée';
+    if (c.datRec) return 'Réceptionnée';
+    return 'En cours';
+  };
+
+  // Tableau de suivi : recherche + filtre statut + tri
+  const filteredCmds = useMemo(() => {
+    let rows = cmds.map(c => ({ ...c, statut: getStatut(c) }));
+
+    if (search.trim()) {
+      const s = search.trim().toLowerCase();
+      rows = rows.filter(c =>
+        String(c.numCmd || '').toLowerCase().includes(s) ||
+        (c.nomFrn || '').toLowerCase().includes(s) ||
+        (c.obsCde || '').toLowerCase().includes(s)
+      );
+    }
+
+    if (statutFilter) {
+      rows = rows.filter(c => c.statut === statutFilter);
+    }
+
+    rows.sort((a, b) => {
+      let va = a[sortKey], vb = b[sortKey];
+      if (sortKey === 'datCde') {
+        va = va ? new Date(va).getTime() : 0;
+        vb = vb ? new Date(vb).getTime() : 0;
+      }
+      if (sortKey === 'montTTC' || sortKey === 'montHT') {
+        va = va || 0; vb = vb || 0;
+      }
+      if (typeof va === 'string') va = va.toLowerCase();
+      if (typeof vb === 'string') vb = vb.toLowerCase();
+      if (va < vb) return sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return rows;
+  }, [cmds, search, statutFilter, sortKey, sortDir]);
+
+  const toggleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  };
+
+  const statutColors = {
+    'Payée': { color: '#2b6e52', bg: '#e4f2ec' },
+    'Facturée': { color: '#5e5288', bg: '#edeaf4' },
+    'Réceptionnée': { color: '#a06a25', bg: '#fdf3e4' },
+    'En cours': { color: '#a63b32', bg: '#fae8e6' },
+  };
+
+  const SortIcon = ({ col }) => {
+    if (sortKey !== col) return null;
+    return sortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />;
+  };
 
   return (
     <div>
@@ -120,9 +147,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
 
       {/* === Bandeau principal === */}
       <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)',
-        }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)' }}>
           <div style={{ padding: '16px 18px', borderRight: '1px solid var(--border-light)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <div style={{ width: 28, height: 28, borderRadius: 7, background: '#f7ece0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -232,322 +257,6 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
         </div>
       )}
 
-      {/* Modal détail fournisseurs */}
-      {showFrn && (() => {
-        const fmtD = d => d ? (d instanceof Date ? d : new Date(d)).toLocaleDateString('fr-FR') : '—';
-        const closeModal = () => { setShowFrn(null); setFrnSelected(null); setFrnDateFrom(''); setFrnDateTo(''); setColFilters({}); setOpenColFilter(null); };
-
-        if (showFrn === 'impayes') {
-          // Vue plate : toutes les commandes non payées avec filtres Excel
-          const allNonPayees = cmds.filter(c => !c.paiementDate && c.datRec && c.nomFrn);
-
-          // Colonnes filtrables
-          const cols = [
-            { key: 'nomFrn', label: 'Fournisseur', val: c => c.nomFrn || '—' },
-            { key: 'obsCde', label: 'Article', val: c => c.obsCde || '—' },
-            { key: 'datCde', label: 'Date Cde', val: c => fmtD(c.datCde) },
-            { key: 'datRec', label: 'Date Réception', val: c => fmtD(c.datRec) },
-          ];
-
-          // Appliquer les filtres colonnes
-          let filteredCmds = allNonPayees;
-          Object.entries(colFilters).forEach(([colKey, vals]) => {
-            if (vals && vals.size > 0) {
-              const col = cols.find(c => c.key === colKey);
-              if (col) filteredCmds = filteredCmds.filter(c => vals.has(col.val(c)));
-            }
-          });
-
-          const totalHT = filteredCmds.reduce((s, c) => s + (c.montHT || 0), 0);
-          const totalTTC = filteredCmds.reduce((s, c) => s + (c.montTTC || 0), 0);
-          const nbFrnFiltered = new Set(filteredCmds.map(c => c.nomFrn)).size;
-          const activeFiltersCount = Object.values(colFilters).filter(v => v && v.size > 0).length;
-
-          // Composant filtre Excel pour une colonne
-          const ColFilterDropdown = ({ col }) => {
-            const uniqueVals = [...new Set(allNonPayees.map(c => col.val(c)))].sort();
-            const selected = colFilters[col.key];
-            const isFiltered = selected && selected.size > 0;
-            const isOpen = openColFilter === col.key;
-            return (
-              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-                <span>{col.label}</span>
-                <button onClick={e => { e.stopPropagation(); setOpenColFilter(isOpen ? null : col.key); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', display: 'flex', alignItems: 'center' }}>
-                  <Filter size={11} style={{ color: isFiltered ? '#a63b32' : '#999' }} />
-                </button>
-                {isOpen && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, background: 'white', border: '1px solid #ddd', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', zIndex: 1010, minWidth: 200, maxHeight: 300, display: 'flex', flexDirection: 'column' }}
-                    onClick={e => e.stopPropagation()}>
-                    <div style={{ padding: '6px 10px', borderBottom: '1px solid #eee', display: 'flex', gap: 8 }}>
-                      <button onClick={() => { setColFilters(f => ({ ...f, [col.key]: new Set(uniqueVals) })); }}
-                        style={{ fontSize: '0.7rem', color: '#2b6e52', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Tout</button>
-                      <button onClick={() => { setColFilters(f => { const nf = { ...f }; delete nf[col.key]; return nf; }); }}
-                        style={{ fontSize: '0.7rem', color: '#a63b32', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Effacer</button>
-                    </div>
-                    <div style={{ overflowY: 'auto', maxHeight: 240, padding: '4px 0' }}>
-                      {uniqueVals.map((v, i) => (
-                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 10px', fontSize: '0.75rem', cursor: 'pointer' }}
-                          onMouseEnter={e => e.currentTarget.style.background = '#f5f0e8'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                          <input type="checkbox" checked={!selected || selected.has(v)}
-                            onChange={e => {
-                              setColFilters(f => {
-                                const cur = f[col.key] ? new Set(f[col.key]) : new Set(uniqueVals);
-                                if (e.target.checked) cur.add(v); else cur.delete(v);
-                                if (cur.size === uniqueVals.length) { const nf = { ...f }; delete nf[col.key]; return nf; }
-                                return { ...f, [col.key]: cur };
-                              });
-                            }}
-                            style={{ accentColor: '#8a5220' }} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{v}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <div style={{ padding: '6px 10px', borderTop: '1px solid #eee', textAlign: 'right' }}>
-                      <button onClick={() => setOpenColFilter(null)}
-                        style={{ fontSize: '0.72rem', background: '#8a5220', color: 'white', border: 'none', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }}>OK</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          };
-
-          return (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={closeModal}>
-              <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 1050, width: '95%', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => { e.stopPropagation(); setOpenColFilter(null); }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <h3 style={{ margin: 0, color: '#a63b32' }}>Commandes non payées ({filteredCmds.length})</h3>
-                  <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><X size={18} /></button>
-                </div>
-
-                <div style={{ background: '#fae8e6', padding: '8px 14px', borderRadius: 6, marginBottom: 12, fontSize: '0.78rem', color: '#a63b32', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                  <span><strong>{nbFrnFiltered}</strong> fournisseurs</span>
-                  <span><strong>{filteredCmds.length}</strong> commandes</span>
-                  <span>Total HT : <strong>{formatMontant(totalHT)}</strong> MRU</span>
-                  <span>Total TTC : <strong>{formatMontant(totalTTC)}</strong> MRU</span>
-                  {activeFiltersCount > 0 && (
-                    <button onClick={() => setColFilters({})}
-                      style={{ fontSize: '0.72rem', background: '#a63b32', color: 'white', border: 'none', borderRadius: 4, padding: '2px 10px', cursor: 'pointer' }}>
-                      Effacer tous les filtres ({activeFiltersCount})
-                    </button>
-                  )}
-                </div>
-
-                <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>N° CMD</th>
-                        <th><ColFilterDropdown col={cols[0]} /></th>
-                        <th><ColFilterDropdown col={cols[1]} /></th>
-                        <th><ColFilterDropdown col={cols[2]} /></th>
-                        <th><ColFilterDropdown col={cols[3]} /></th>
-                        <th style={{ textAlign: 'right' }}>Montant HT</th>
-                        <th style={{ textAlign: 'right' }}>Montant TTC</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredCmds.map((c, i) => (
-                        <tr key={i}>
-                          <td style={{ fontWeight: 600 }}>{c.numCmd}</td>
-                          <td>{c.nomFrn || '—'}</td>
-                          <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{c.obsCde || '—'}</td>
-                          <td>{fmtD(c.datCde)}</td>
-                          <td>{fmtD(c.datRec)}</td>
-                          <td className="amount">{formatMontant(c.montHT)}</td>
-                          <td className="amount">{formatMontant(c.montTTC)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border-light)' }}>
-                        <td colSpan={5}>Total</td>
-                        <td className="amount">{formatMontant(totalHT)}</td>
-                        <td className="amount">{formatMontant(totalTTC)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            </div>
-          );
-        }
-
-        // Vue payés : groupé par fournisseur (inchangée)
-        const listeFrnPayes = Object.values(frnDetail).filter(f => frnPayes.has(f.nom) && !frnNonPayes.has(f.nom));
-        const filteredPayes = frnFilter ? listeFrnPayes.filter(f => f.nom.toLowerCase().includes(frnFilter.toLowerCase())) : listeFrnPayes;
-        const sortedPayes = filteredPayes.sort((a, b) => b.totalPaye - a.totalPaye);
-        const detailCmds = frnSelected ? frnDetail[frnSelected]?.cmdsPayees || [] : [];
-        return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={closeModal}>
-            <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 950, width: '95%', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h3 style={{ margin: 0, color: '#2b6e52' }}>Fournisseurs entièrement payés ({listeFrnPayes.length})</h3>
-                <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><X size={18} /></button>
-              </div>
-              <input type="text" placeholder="Filtrer par nom..." value={frnFilter}
-                onChange={e => { setFrnFilter(e.target.value); setFrnSelected(null); }}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: 6, marginBottom: 12, fontSize: '0.82rem' }} />
-
-              {!frnSelected ? (
-                <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-                  <table className="data-table">
-                    <thead><tr><th>Fournisseur</th><th style={{ textAlign: 'center' }}>Cmds</th><th style={{ textAlign: 'right' }}>Montant payé</th></tr></thead>
-                    <tbody>
-                      {sortedPayes.map((f, i) => (
-                        <tr key={i} style={{ cursor: 'pointer' }} onClick={() => setFrnSelected(f.nom)}>
-                          <td style={{ fontWeight: 600, color: '#8a5220' }}>{f.nom}</td>
-                          <td style={{ textAlign: 'center' }}>{f.cmdsPayees.length}</td>
-                          <td className="amount" style={{ color: '#2b6e52' }}>{formatMontant(f.totalPaye)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <button onClick={() => setFrnSelected(null)} style={{ background: '#f5f0e8', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, color: '#8a5220' }}>← Retour</button>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#8a5220' }}>{frnSelected}</span>
-                    <span className="badge badge-neutral" style={{ marginLeft: 8 }}>{detailCmds.length} commandes</span>
-                  </div>
-                  <div style={{ maxHeight: 450, overflowY: 'auto' }}>
-                    <table className="data-table">
-                      <thead><tr><th>N° CMD</th><th>Article</th><th>Date Cde</th><th>Date Réception</th><th>Date Paiement</th><th style={{ textAlign: 'right' }}>Montant HT</th><th style={{ textAlign: 'right' }}>Montant TTC</th></tr></thead>
-                      <tbody>
-                        {detailCmds.map((c, i) => (
-                          <tr key={i}>
-                            <td style={{ fontWeight: 600 }}>{c.numCmd}</td>
-                            <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{c.obsCde || '—'}</td>
-                            <td>{fmtD(c.datCde)}</td>
-                            <td>{fmtD(c.datRec)}</td>
-                            <td>{fmtD(c.paiementDate)}</td>
-                            <td className="amount">{formatMontant(c.montHT)}</td>
-                            <td className="amount">{formatMontant(c.montTTC)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border-light)' }}>
-                          <td colSpan={5}>Total</td>
-                          <td className="amount">{formatMontant(detailCmds.reduce((s, c) => s + (c.montHT || 0), 0))}</td>
-                          <td className="amount">{formatMontant(detailCmds.reduce((s, c) => s + (c.montTTC || 0), 0))}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Modal alertes paiement >90j */}
-      {showAlerts && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowAlerts(false)}>
-          <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 850, width: '90%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, color: '#a63b32' }}>Factures impayées au-delà de 90 jours ({paymentAlerts.length})</h3>
-              <button onClick={() => setShowAlerts(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><X size={18} /></button>
-            </div>
-            <div style={{ background: '#fae8e6', padding: '8px 14px', borderRadius: 6, marginBottom: 12, fontSize: '0.78rem', color: '#a63b32', display: 'flex', gap: 16 }}>
-              <span><strong>{paymentAlerts.length}</strong> factures en retard</span>
-              <span>Retard max : <strong>{paymentAlerts.length > 0 ? Math.max(...paymentAlerts.map(a => a.joursRetard)) : 0}j</strong></span>
-              <span>Montant total : <strong>{formatMontant(paymentAlerts.reduce((s, a) => s + (a.montant || 0), 0))}</strong> MRU</span>
-            </div>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>N° CMD</th>
-                  <th>Fournisseur</th>
-                  <th style={{ textAlign: 'right' }}>Montant TTC</th>
-                  <th>Date facture reçue</th>
-                  <th style={{ textAlign: 'right' }}>Jours depuis facture</th>
-                  <th style={{ textAlign: 'right' }}>Retard / 90j</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paymentAlerts.map((a, i) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 600 }}>{a.numCmd}</td>
-                    <td>{a.fournisseur || '—'}</td>
-                    <td className="amount">{formatMontant(a.montant)}</td>
-                    <td>{a.dateFacture ? new Date(a.dateFacture).toLocaleDateString('fr-FR') : '—'}</td>
-                    <td className="amount">{a.joursRetard}j</td>
-                    <td className="amount" style={{ color: '#a63b32', fontWeight: 600 }}>+{a.retardSur90}j</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border-light)' }}>
-                  <td colSpan={2}>Total</td>
-                  <td className="amount">{formatMontant(paymentAlerts.reduce((s, a) => s + (a.montant || 0), 0))}</td>
-                  <td colSpan={3}></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* === Ligne 2 : Délais === */}
-      <div className="grid-4">
-        <div className="card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f7ece0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Clock size={15} style={{ color: '#8a5220' }} />
-          </div>
-          <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#8a5220' }}>{delays.delaiCdeRec.moyenne}j</div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Cde → Réception</div>
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#e4f2ec', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Clock size={15} style={{ color: '#2b6e52' }} />
-          </div>
-          <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#2b6e52' }}>{delays.delaiRecPaiement.moyenne}j</div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Réception → Paiement</div>
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ position: 'relative' }}>
-            <CircleProgress pct={pctRespect} color={pctRespect > 50 ? '#3d8b6e' : '#c44a3f'} bgColor={pctRespect > 50 ? '#e4f2ec' : '#fae8e6'} size={40} stroke={4} />
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: pctRespect > 50 ? '#2b6e52' : '#a63b32' }}>
-              {pctRespect}%
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-primary)' }}>Respect délai</div>
-            <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>
-              <span style={{ color: '#3d8b6e' }}>{delays.respectDelai.respecte}</span> ok · <span style={{ color: '#c44a3f' }}>{delays.respectDelai.depasse}</span> retard
-            </div>
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: paymentAlerts.length > 0 ? 'pointer' : 'default' }} onClick={() => paymentAlerts.length > 0 && setShowAlerts(true)}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: paymentAlerts.length > 0 ? '#fae8e6' : '#e4f2ec', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {paymentAlerts.length > 0
-              ? <XCircle size={15} style={{ color: '#a63b32' }} />
-              : <CheckCircle2 size={15} style={{ color: '#2b6e52' }} />
-            }
-          </div>
-          <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: paymentAlerts.length > 0 ? '#a63b32' : '#2b6e52', textDecoration: paymentAlerts.length > 0 ? 'underline dotted' : 'none' }}>
-              {paymentAlerts.length}
-            </div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-              Impayées &gt;90j{paymentAlerts.length > 0 ? ` · ${formatMontant(paymentAlerts.reduce((s, a) => s + a.montant, 0))}` : ''}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* === Pipeline cliquable === */}
       <div className="card full-width">
         <div className="card-title">Pipeline des commandes <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— cliquez un segment</span></div>
@@ -653,156 +362,99 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
         })()}
       </div>
 
-      {/* === Top fournisseurs cliquable === */}
+      {/* === Tableau de suivi des commandes === */}
       <div className="card full-width">
-        <div className="card-title">Top fournisseurs par montant <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— cliquez pour détails</span></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {top8.map((s, i) => {
-            const pct = (s.montantTotal / maxMontant) * 100;
-            const color = barColors[i % barColors.length];
-            const isSelected = selectedFrn === s.nom;
-            return (
-              <div key={i}>
-                <div
-                  onClick={() => setSelectedFrn(isSelected ? null : s.nom)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
-                    background: isSelected ? color + '12' : 'transparent',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--border-light)'; }}
-                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <span style={{ width: 140, fontSize: '0.75rem', fontWeight: isSelected ? 600 : 500, color: isSelected ? color : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    {s.nom}
-                  </span>
-                  <div style={{ flex: 1, height: 18, background: 'var(--border-light)', borderRadius: 5, overflow: 'hidden', position: 'relative' }}>
-                    <div style={{
-                      width: `${pct}%`, height: '100%',
-                      background: `linear-gradient(90deg, ${color}bb, ${color})`,
-                      borderRadius: 5, transition: 'width 0.5s ease',
-                      display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 6,
-                    }}>
-                      {pct > 18 && <span style={{ fontSize: '0.63rem', fontWeight: 600, color: 'white' }}>{formatMontant(Math.round(s.montantTotal / 1000))}k</span>}
-                    </div>
-                    {pct <= 18 && <span style={{ position: 'absolute', left: `${pct + 1}%`, top: '50%', transform: 'translateY(-50%)', fontSize: '0.63rem', fontWeight: 600, color: color }}>{formatMontant(Math.round(s.montantTotal / 1000))}k</span>}
-                  </div>
-                  <span style={{ fontSize: '0.63rem', color: 'var(--text-muted)', minWidth: 42, textAlign: 'right', flexShrink: 0 }}>
-                    {s.nbCommandes} cmds
-                  </span>
-                </div>
+        <div className="card-title">Suivi des commandes <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— {filteredCmds.length} résultat(s)</span></div>
 
-                {/* Panneau détail */}
-                {isSelected && (
-                  <div style={{
-                    margin: '4px 0 6px 8px', padding: '12px 14px',
-                    background: color + '0a', borderRadius: 8,
-                    borderLeft: `3px solid ${color}`,
-                    animation: 'fadeIn 0.3s ease',
-                  }}>
-                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 8 }}>
-                      <div>
-                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Montant HT</div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: color }}>{formatMontant(s.montantTotal)} MRU</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Commandes</div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>{s.nbCommandes}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Délai moyen</div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {s.delais.length > 0 ? (
-                            <span className={`badge ${s.delaiMoyen > 60 ? 'badge-danger' : s.delaiMoyen > 30 ? 'badge-warning' : 'badge-success'}`}>
-                              {s.delaiMoyen}j
-                            </span>
-                          ) : '—'}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sans réception</div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: s.sansReception > 0 ? 'var(--warning)' : 'var(--text-primary)' }}>
-                          {s.sansReception}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sans paiement</div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: s.sansPaiement > 0 ? 'var(--danger)' : 'var(--text-primary)' }}>
-                          {s.sansPaiement}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 260px' }}>
+            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Rechercher par N° CMD, fournisseur, objet..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                width: '100%', padding: '8px 12px 8px 32px',
+                border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem',
+              }}
+            />
+          </div>
+          <select
+            value={statutFilter}
+            onChange={e => setStatutFilter(e.target.value)}
+            style={{
+              padding: '8px 12px', border: '1px solid var(--border-light)',
+              borderRadius: 6, fontSize: '0.82rem', background: 'white', minWidth: 160,
+            }}
+          >
+            <option value="">Tous les statuts</option>
+            <option value="Payée">Payée</option>
+            <option value="Facturée">Facturée</option>
+            <option value="Réceptionnée">Réceptionnée</option>
+            <option value="En cours">En cours</option>
+          </select>
+          {(search || statutFilter) && (
+            <button
+              onClick={() => { setSearch(''); setStatutFilter(''); }}
+              style={{
+                padding: '8px 12px', border: '1px solid var(--border-light)',
+                borderRadius: 6, fontSize: '0.78rem', background: '#f5f0e8',
+                cursor: 'pointer', color: 'var(--text-secondary)',
+              }}
+            >
+              Réinitialiser
+            </button>
+          )}
+        </div>
+
+        <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th onClick={() => toggleSort('numCmd')} style={{ cursor: 'pointer' }}>N° CMD <SortIcon col="numCmd" /></th>
+                <th onClick={() => toggleSort('nomFrn')} style={{ cursor: 'pointer' }}>Fournisseur <SortIcon col="nomFrn" /></th>
+                <th>Objet</th>
+                <th onClick={() => toggleSort('datCde')} style={{ cursor: 'pointer' }}>Date Cde <SortIcon col="datCde" /></th>
+                <th onClick={() => toggleSort('montTTC')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant TTC <SortIcon col="montTTC" /></th>
+                <th onClick={() => toggleSort('statut')} style={{ cursor: 'pointer' }}>Statut <SortIcon col="statut" /></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCmds.slice(0, 200).map((c, i) => {
+                const sc = statutColors[c.statut] || { color: 'var(--text-secondary)', bg: 'var(--border-light)' };
+                return (
+                  <tr key={i}>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{c.numCmd}</td>
+                    <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nomFrn || '—'}</td>
+                    <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{c.obsCde || '—'}</td>
+                    <td style={{ fontSize: '0.78rem' }}>{c.datCde ? new Date(c.datCde).toLocaleDateString('fr-FR') : '—'}</td>
+                    <td className="amount">{formatMontant(c.montTTC || c.montHT || 0)}</td>
+                    <td>
+                      <span style={{
+                        display: 'inline-block', padding: '2px 8px', borderRadius: 10,
+                        fontSize: '0.7rem', fontWeight: 600, color: sc.color, background: sc.bg,
+                      }}>
+                        {c.statut}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filteredCmds.length > 200 && (
+            <div style={{ textAlign: 'center', padding: 12, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              Affichage limité aux 200 premiers résultats — affinez la recherche pour voir plus précisément.
+            </div>
+          )}
+          {filteredCmds.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 24, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Aucune commande ne correspond à ces critères.
+            </div>
+          )}
         </div>
       </div>
-
-      {/* === Détail des taxes par commande === */}
-      {(() => {
-        const ecartTaxes = cmds
-          .filter(c => c.montHT && c.montTTC && Math.abs(c.montTTC - c.montHT) > 100)
-          .map(c => ({
-            numCmd: c.numCmd,
-            fournisseur: c.nomFrn,
-            datCde: c.datCde,
-            article: c.obsCde,
-            montHT: c.montHT,
-            montTTC: c.montTTC,
-            ecart: c.montTTC - c.montHT,
-          }))
-          .sort((a, b) => Math.abs(b.ecart) - Math.abs(a.ecart));
-
-        if (ecartTaxes.length === 0) return null;
-
-        return (
-          <div className="card full-width">
-            <div style={{ background: '#7b6fa0', color: 'white', padding: '10px 16px', borderRadius: '8px 8px 0 0', margin: '-24px -24px 16px -24px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Détail des taxes appliquées par commande</div>
-            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>N° CMD</th>
-                    <th>Date</th>
-                    <th>Fournisseur</th>
-                    <th>Article</th>
-                    <th style={{ textAlign: 'right' }}>Mont. HT</th>
-                    <th style={{ textAlign: 'right' }}>Mont. TTC</th>
-                    <th style={{ textAlign: 'right' }}>Taxe</th>
-                    <th style={{ textAlign: 'right' }}>Taux</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ecartTaxes.map((c, i) => {
-                    const taux = c.montHT > 0 ? Math.round((c.ecart / c.montHT) * 100) : 0;
-                    return (
-                      <tr key={i}>
-                        <td>{c.numCmd}</td>
-                        <td style={{ fontSize: '0.78rem' }}>{c.datCde ? new Date(c.datCde).toLocaleDateString('fr-FR') : '—'}</td>
-                        <td>{c.fournisseur}</td>
-                        <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                          {c.article || '—'}
-                        </td>
-                        <td className="amount">{formatMontant(c.montHT)}</td>
-                        <td className="amount">{formatMontant(c.montTTC)}</td>
-                        <td className="amount" style={{ color: 'var(--warning)', fontWeight: 600 }}>
-                          +{formatMontant(c.ecart)}
-                        </td>
-                        <td className="amount" style={{ fontWeight: 600, color: taux !== 5 ? '#a63b32' : 'var(--text-secondary)' }}>
-                          {taux}%
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
-      })()}
 
       <style>{`
         @keyframes fadeIn {
