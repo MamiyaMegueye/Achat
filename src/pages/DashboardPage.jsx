@@ -19,7 +19,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     { name: 'Payées', value: kpis.payees, color: '#3d8b6e', bg: '#e4f2ec' },
     { name: 'Facturées', value: kpis.facturees - kpis.payees, color: '#7b6fa0', bg: '#edeaf4' },
     { name: 'Réceptionnées', value: kpis.receptionnees - kpis.facturees, color: '#d4975a', bg: '#fdf3e4' },
-    { name: 'En cours', value: kpis.totalCmds - kpis.receptionnees, color: '#c44a3f', bg: '#fae8e6' },
+    { name: 'Non réceptionnée', value: kpis.totalCmds - kpis.receptionnees, color: '#c44a3f', bg: '#fae8e6' },
   ].filter(d => d.value > 0);
 
   const pctPayees = Math.round(kpis.payees / kpis.totalCmds * 100);
@@ -52,7 +52,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
       case 'Réceptionnées':
         filtered = cmds.filter(c => c.datRec && !c.factDateFact);
         break;
-      case 'En cours':
+      case 'Non réceptionnée':
         filtered = cmds.filter(c => !c.datRec);
         break;
       default:
@@ -78,7 +78,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     if (c.paiementDate) return 'Payée';
     if (c.factDateFact) return 'Facturée';
     if (c.datRec) return 'Réceptionnée';
-    return 'En cours';
+    return 'Non réceptionnée';
   };
 
   // Tableau de suivi : recherche + filtre statut + tri
@@ -90,7 +90,8 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
       rows = rows.filter(c =>
         String(c.numCmd || '').toLowerCase().includes(s) ||
         (c.nomFrn || '').toLowerCase().includes(s) ||
-        (c.obsCde || '').toLowerCase().includes(s)
+        (c.obsCde || '').toLowerCase().includes(s) ||
+        (c.articles || []).some(a => (a.article || '').toLowerCase().includes(s))
       );
     }
 
@@ -130,7 +131,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     'Payée': { color: '#2b6e52', bg: '#e4f2ec' },
     'Facturée': { color: '#5e5288', bg: '#edeaf4' },
     'Réceptionnée': { color: '#a06a25', bg: '#fdf3e4' },
-    'En cours': { color: '#a63b32', bg: '#fae8e6' },
+    'Non réceptionnée': { color: '#a63b32', bg: '#fae8e6' },
   };
 
   const SortIcon = ({ col }) => {
@@ -371,7 +372,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
             <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
-              placeholder="Rechercher par N° CMD, fournisseur, objet..."
+              placeholder="Rechercher par N° CMD, fournisseur, article, objet..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               style={{
@@ -392,7 +393,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
             <option value="Payée">Payée</option>
             <option value="Facturée">Facturée</option>
             <option value="Réceptionnée">Réceptionnée</option>
-            <option value="En cours">En cours</option>
+            <option value="Non réceptionnée">Non réceptionnée</option>
           </select>
           {(search || statutFilter) && (
             <button
@@ -414,6 +415,8 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
               <tr>
                 <th onClick={() => toggleSort('numCmd')} style={{ cursor: 'pointer' }}>N° CMD <SortIcon col="numCmd" /></th>
                 <th onClick={() => toggleSort('nomFrn')} style={{ cursor: 'pointer' }}>Fournisseur <SortIcon col="nomFrn" /></th>
+                <th>Article</th>
+                <th style={{ textAlign: 'right' }}>Prix unitaire</th>
                 <th>Objet</th>
                 <th onClick={() => toggleSort('datCde')} style={{ cursor: 'pointer' }}>Date Cde <SortIcon col="datCde" /></th>
                 <th onClick={() => toggleSort('montTTC')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant TTC <SortIcon col="montTTC" /></th>
@@ -427,6 +430,21 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                   <tr key={i}>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{c.numCmd}</td>
                     <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nomFrn || '—'}</td>
+                    <td style={{ maxWidth: 220, fontSize: '0.78rem' }} title={(c.articles || []).map(a => a.article).join(', ')}>
+                      {c.articles && c.articles.length > 0 ? (
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                          {c.articles[0].article}
+                          {c.articles.length > 1 && <span style={{ color: 'var(--text-muted)' }}> (+{c.articles.length - 1})</span>}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="amount" style={{ fontSize: '0.78rem' }}>
+                      {c.articles && c.articles.length > 0 ? (
+                        c.articles.length === 1
+                          ? formatMontant(c.articles[0].pu)
+                          : `${formatMontant(Math.min(...c.articles.map(a => a.pu || 0)))} – ${formatMontant(Math.max(...c.articles.map(a => a.pu || 0)))}`
+                      ) : '—'}
+                    </td>
                     <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{c.obsCde || '—'}</td>
                     <td style={{ fontSize: '0.78rem' }}>{c.datCde ? new Date(c.datCde).toLocaleDateString('fr-FR') : '—'}</td>
                     <td className="amount">{formatMontant(c.montTTC || c.montHT || 0)}</td>

@@ -64,9 +64,21 @@ export default function App() {
         const seasonality = computeSeasonality(cmds);
         const dependencyStats = computeDependencyStats(bcs);
 
+        // Jointure BC → commandes sur (année + numéro) pour exposer les articles par commande
+        const bcByKey = {};
+        bcs.forEach(bc => {
+          const key = `${bc.annee}-${bc.numBC}`;
+          if (!bcByKey[key]) bcByKey[key] = [];
+          bcByKey[key].push(bc);
+        });
+        const cmdsEnrichies = cmds.map(c => ({
+          ...c,
+          articles: bcByKey[`${c.anCmd}-${c.numCmd}`] || [],
+        }));
+
         setStats({
           kpis, delays, supplierStats, articleStats,
-          paymentAlerts, structureStats, missingDocs, cmds, seasonality, dependencyStats
+          paymentAlerts, structureStats, missingDocs, cmds: cmdsEnrichies, seasonality, dependencyStats
         });
 
         if (activePage === 'import' && counts.bcCount > 0 && counts.cmdCount > 0) {
