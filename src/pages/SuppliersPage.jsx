@@ -1,37 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { formatMontant } from '../utils/stats';
-import { Clock, TrendingUp, AlertTriangle, ShieldAlert, Package, Users } from 'lucide-react';
+import { Clock, TrendingUp, AlertTriangle, PieChart, Users, Search } from 'lucide-react';
 
-export default function SuppliersPage({ supplierStats, dependencyStats }) {
+export default function SuppliersPage({ supplierStats }) {
   const [sortKey, setSortKey] = useState('montantTotal');
-  const [depTab, setDepTab] = useState('monoFrn');
+  const [search, setSearch] = useState('');
 
-  const fmtPeriode = (dMin, dMax) => {
-    if (!dMin) return '—';
-    const fmt = d => d.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
-    if (!dMax || fmt(dMin) === fmt(dMax)) return fmt(dMin);
-    return `${fmt(dMin)} → ${fmt(dMax)}`;
-  };
-
-  const sorted = [...supplierStats].sort((a, b) => {
-    if (sortKey === 'montantTotal') return b.montantTotal - a.montantTotal;
-    if (sortKey === 'nbCommandes') return b.nbCommandes - a.nbCommandes;
-    if (sortKey === 'delaiMoyen') return b.delaiMoyen - a.delaiMoyen;
-    return 0;
-  });
-
-  const top10Delai = [...supplierStats]
-    .filter(s => s.delais.length >= 3)
-    .sort((a, b) => b.delaiMoyen - a.delaiMoyen)
-    .slice(0, 10);
-
-  const maxDelai = top10Delai.length > 0 ? top10Delai[0].delaiMoyen : 1;
-
-  const getDelaiColor = (d) => {
-    if (d > 60) return { bg: '#fae8e6', bar: '#c44a3f', text: '#a63b32' };
-    if (d > 30) return { bg: '#fdf3e4', bar: '#c48520', text: '#8a5e16' };
-    return { bg: '#e4f2ec', bar: '#3d8b6e', text: '#2b6e52' };
-  };
+  const sorted = useMemo(() => {
+    let list = [...supplierStats];
+    if (search.trim()) {
+      const s = search.trim().toLowerCase();
+      list = list.filter(f => f.nom.toLowerCase().includes(s));
+    }
+    list.sort((a, b) => {
+      if (sortKey === 'montantTotal') return b.montantTotal - a.montantTotal;
+      if (sortKey === 'nbCommandes') return b.nbCommandes - a.nbCommandes;
+      if (sortKey === 'delaiMoyen') return b.delaiMoyen - a.delaiMoyen;
+      return 0;
+    });
+    return list;
+  }, [supplierStats, search, sortKey]);
 
   // Stats résumé
   const avgDelai = supplierStats.length > 0
@@ -39,6 +27,22 @@ export default function SuppliersPage({ supplierStats, dependencyStats }) {
     : 0;
   const nbLents = supplierStats.filter(s => s.delaiMoyen > 60 && s.delais.length >= 3).length;
   const nbSansRec = supplierStats.filter(s => s.sansReception > 0).length;
+
+  // === Analyse Pareto (80/20) ===
+  const pareto = useMemo(() => {
+    const total = supplierStats.reduce((s, f) => s + f.montantTotal, 0);
+    const rangs = [...supplierStats].sort((a, b) => b.montantTotal - a.montantTotal);
+    let cumul = 0;
+    let seuil80Index = -1;
+    const rows = rangs.map((f, i) => {
+      cumul += f.montantTotal;
+      const pctIndividuel = total > 0 ? (f.montantTotal / total) * 100 : 0;
+      const pctCumule = total > 0 ? (cumul / total) * 100 : 0;
+      if (seuil80Index === -1 && pctCumule >= 80) seuil80Index = i;
+      return { ...f, pctIndividuel, pctCumule };
+    });
+    return { rows, total, nbPour80: seuil80Index + 1, pctFrnPour80: rangs.length > 0 ? Math.round(((seuil80Index + 1) / rangs.length) * 100) : 0 };
+  }, [supplierStats]);
 
   return (
     <div>
@@ -79,53 +83,9 @@ export default function SuppliersPage({ supplierStats, dependencyStats }) {
         </div>
       </div>
 
-      {/* Top 10 délais — barres visuelles */}
+      {/* Table classement */}
       <div className="card full-width">
-        <div className="card-title">Top 10 fournisseurs les plus lents (délai moyen en jours)</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {top10Delai.map((s, i) => {
-            const pct = (s.delaiMoyen / maxDelai) * 100;
-            const colors = getDelaiColor(s.delaiMoyen);
-            return (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '6px 10px', borderRadius: 6,
-                background: colors.bg,
-                transition: 'transform 0.15s',
-              }}>
-                <span style={{
-                  width: 20, fontSize: '0.68rem', fontWeight: 600,
-                  color: colors.text, textAlign: 'center', flexShrink: 0,
-                }}>{i + 1}</span>
-                <span style={{
-                  width: 160, fontSize: '0.78rem', fontWeight: 500,
-                  color: 'var(--text-primary)', overflow: 'hidden',
-                  textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0,
-                }}>{s.nom}</span>
-                <div style={{ flex: 1, height: 14, background: 'rgba(255,255,255,0.5)', borderRadius: 7, overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${pct}%`, height: '100%',
-                    background: colors.bar, borderRadius: 7,
-                    transition: 'width 0.4s ease',
-                  }} />
-                </div>
-                <span style={{
-                  fontSize: '0.78rem', fontWeight: 700, color: colors.text,
-                  minWidth: 36, textAlign: 'right', flexShrink: 0,
-                }}>{s.delaiMoyen}j</span>
-                <span style={{
-                  fontSize: '0.65rem', color: 'var(--text-muted)',
-                  minWidth: 50, textAlign: 'right', flexShrink: 0,
-                }}>{s.delais.length} cmd{s.delais.length > 1 ? 's' : ''}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="card full-width">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <div className="card-title" style={{ marginBottom: 0 }}>Classement fournisseurs</div>
           <div className="tabs" style={{ marginBottom: 0 }}>
             <button className={`tab ${sortKey === 'montantTotal' ? 'active' : ''}`} onClick={() => setSortKey('montantTotal')}>Par montant</button>
@@ -133,6 +93,18 @@ export default function SuppliersPage({ supplierStats, dependencyStats }) {
             <button className={`tab ${sortKey === 'delaiMoyen' ? 'active' : ''}`} onClick={() => setSortKey('delaiMoyen')}>Par délai</button>
           </div>
         </div>
+
+        <div style={{ position: 'relative', maxWidth: 320, marginBottom: 14 }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <input
+            type="text"
+            placeholder="Rechercher un fournisseur..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', padding: '7px 10px 7px 30px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.8rem' }}
+          />
+        </div>
+
         <div style={{ maxHeight: 500, overflowY: 'auto' }}>
           <table className="data-table">
             <thead>
@@ -147,7 +119,7 @@ export default function SuppliersPage({ supplierStats, dependencyStats }) {
               </tr>
             </thead>
             <tbody>
-              {sorted.slice(0, 50).map((s, i) => (
+              {sorted.slice(0, 100).map((s, i) => (
                 <tr key={i}>
                   <td style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{i + 1}</td>
                   <td style={{ fontWeight: 500, maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -170,138 +142,66 @@ export default function SuppliersPage({ supplierStats, dependencyStats }) {
               ))}
             </tbody>
           </table>
+          {sorted.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Aucun fournisseur trouvé.</div>
+          )}
         </div>
       </div>
 
-      {/* Analyse dépendance */}
-      {dependencyStats && (
-        <>
-          <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ background: '#7c3a2e', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ShieldAlert size={15} /> Diversification des fournisseurs et des articles
-            </div>
+      {/* === Analyse Pareto (80/20) === */}
+      <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ background: '#7c3a2e', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <PieChart size={15} /> Concentration des achats — Principe de Pareto
+        </div>
 
-            {/* KPIs dépendance */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid var(--border-light)' }}>
-              <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Articles à fournisseur unique</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#a63b32' }}>{dependencyStats.monoFournisseur.length}</div>
-                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>sur {dependencyStats.artList.length} articles</div>
-              </div>
-              <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Fournisseurs à article unique</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#8a5220' }}>{dependencyStats.monoArticle.length}</div>
-                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>sur {dependencyStats.frnList.length} fournisseurs</div>
-              </div>
-              <div style={{ padding: '14px 18px' }}>
-                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Fournisseurs à plusieurs articles</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#2b6e52' }}>{dependencyStats.multiArticle.length}</div>
-                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>fournissent plusieurs articles</div>
-              </div>
-            </div>
-
-            {/* Tabs */}
-            <div style={{ padding: '12px 16px 0' }}>
-              <div className="tabs" style={{ marginBottom: 0 }}>
-                <button className={`tab ${depTab === 'monoFrn' ? 'active' : ''}`} onClick={() => setDepTab('monoFrn')}>
-                  Articles à fournisseur unique ({dependencyStats.monoFournisseur.length})
-                </button>
-                <button className={`tab ${depTab === 'monoArt' ? 'active' : ''}`} onClick={() => setDepTab('monoArt')}>
-                  Fournisseurs à article unique ({dependencyStats.monoArticle.length})
-                </button>
-                <button className={`tab ${depTab === 'multiArt' ? 'active' : ''}`} onClick={() => setDepTab('multiArt')}>
-                  Fournisseurs à plusieurs articles ({dependencyStats.multiArticle.length})
-                </button>
-              </div>
-            </div>
-
-            <div style={{ padding: '0 16px 16px', maxHeight: 450, overflowY: 'auto' }}>
-              {depTab === 'monoFrn' && (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Article</th>
-                      <th>Fournisseur unique</th>
-                      <th>N° BC</th>
-                      <th>Période</th>
-                      <th style={{ textAlign: 'right' }}>Nb commandes</th>
-                      <th style={{ textAlign: 'right' }}>Montant HT</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dependencyStats.monoFournisseur.map((a, i) => (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 300 }}>{a.label}</td>
-                        <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{a.fournisseurs[0]}</td>
-                        <td style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 200 }}>{a.numBCs.join(', ')}</td>
-                        <td style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{fmtPeriode(a.dateMin, a.dateMax)}</td>
-                        <td className="amount">{a.nbCommandes}</td>
-                        <td className="amount">{formatMontant(a.montantTotal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              {depTab === 'monoArt' && (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Fournisseur</th>
-                      <th>Article unique</th>
-                      <th>N° BC</th>
-                      <th>Période</th>
-                      <th style={{ textAlign: 'right' }}>Nb commandes</th>
-                      <th style={{ textAlign: 'right' }}>Montant HT</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dependencyStats.monoArticle.sort((a, b) => b.montantTotal - a.montantTotal).map((f, i) => (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word' }}>{f.nom}</td>
-                        <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word' }}>{f.articleLabels[f.articles[0]] || f.articles[0]}</td>
-                        <td style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 200 }}>{f.numBCs.join(', ')}</td>
-                        <td style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{fmtPeriode(f.dateMin, f.dateMax)}</td>
-                        <td className="amount">{f.nbCommandes}</td>
-                        <td className="amount">{formatMontant(f.montantTotal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              {depTab === 'multiArt' && (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Fournisseur</th>
-                      <th style={{ textAlign: 'right' }}>Nb articles</th>
-                      <th>N° BC</th>
-                      <th>Période</th>
-                      <th style={{ textAlign: 'right' }}>Nb commandes</th>
-                      <th style={{ textAlign: 'right' }}>Montant HT</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dependencyStats.multiArticle.sort((a, b) => b.nbArticles - a.nbArticles).map((f, i) => (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word' }}>{f.nom}</td>
-                        <td className="amount">
-                          <span className="badge badge-success">{f.nbArticles}</span>
-                        </td>
-                        <td style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 200 }}>{f.numBCs.join(', ')}</td>
-                        <td style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{fmtPeriode(f.dateMin, f.dateMax)}</td>
-                        <td className="amount">{f.nbCommandes}</td>
-                        <td className="amount">{formatMontant(f.montantTotal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
+        <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border-light)' }}>
+          <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            <span style={{ color: '#a63b32' }}>{pareto.nbPour80} fournisseurs</span> ({pareto.pctFrnPour80}% du total) concentrent <span style={{ color: '#a63b32' }}>80%</span> du montant total des achats
           </div>
-        </>
-      )}
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+            Sur {supplierStats.length} fournisseurs actifs, un nombre restreint représente l'essentiel de la dépense — ce sont les partenaires à surveiller en priorité.
+          </div>
+        </div>
+
+        <div style={{ padding: '0 16px 16px', maxHeight: 450, overflowY: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Fournisseur</th>
+                <th style={{ textAlign: 'right' }}>Montant HT</th>
+                <th style={{ textAlign: 'right' }}>% individuel</th>
+                <th style={{ textAlign: 'right' }}>% cumulé</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pareto.rows.slice(0, 100).map((f, i) => {
+                const dans80 = i < pareto.nbPour80;
+                return (
+                  <tr key={i} style={dans80 ? { background: '#fdf3ec' } : {}}>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{i + 1}</td>
+                    <td style={{ fontWeight: dans80 ? 600 : 400, maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {f.nom}
+                    </td>
+                    <td className="amount">{formatMontant(f.montantTotal)}</td>
+                    <td className="amount" style={{ fontSize: '0.78rem' }}>{f.pctIndividuel.toFixed(1)}%</td>
+                    <td className="amount">
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                        <div style={{ width: 60, height: 6, background: 'var(--bg-main)', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(f.pctCumule, 100)}%`, height: '100%', background: dans80 ? '#c44a3f' : '#3d8b6e', borderRadius: 3 }} />
+                        </div>
+                        <span style={{ fontWeight: 600, fontSize: '0.78rem', color: dans80 ? '#a63b32' : 'var(--text-secondary)', minWidth: 42 }}>
+                          {f.pctCumule.toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

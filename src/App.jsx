@@ -120,7 +120,7 @@ export default function App() {
       case 'delays':
         return <DelaysPage delays={stats.delays} cmds={stats.cmds} />;
       case 'suppliers':
-        return <SuppliersPage supplierStats={stats.supplierStats} dependencyStats={stats.dependencyStats} />;
+        return <SuppliersPage supplierStats={stats.supplierStats} />;
       case 'articles':
         return <ArticlesPage articleStats={stats.articleStats} />;
       // alerts supprimé — intégré dans Vue d'ensemble
