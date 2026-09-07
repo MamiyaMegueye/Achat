@@ -214,6 +214,7 @@ export function parseSuiviCmd(workbook) {
         numCmd: Number(get('NUM_CMD')) || 0,
         anCmd: get('AN_CMD'),
         datCde: parseExcelDate(get('DATCDE', 'DAT_CDE', 'DATE_CDE', 'DATE COMMANDE')),
+        dateAffichage: parseExcelDate(get('DATE_AFFICHAGE', 'DATE AFFICHAGE', 'DATEAFFICHAGE')),
         delaiLivraison: parseExcelDate(get('DELAI DE LIVRAISON', 'DELAI_LIVRAISON', 'DELAI_DE_LIVRAISON', 'DELAILIVRAISON', 'DELAI')),
         codeFour: Number(get('COD_FOUR', 'CODE_FOUR')) || 0,
         nomFrn: cleanStr(get('NOM_FRN', 'NOM_FOURNISSEUR', 'FOURNISSEUR')),
