@@ -65,16 +65,33 @@ export default function App() {
         const dependencyStats = computeDependencyStats(bcs);
 
         // Jointure BC → commandes sur (année + numéro) pour exposer les articles par commande
+        const toNum = v => {
+          if (v == null || v === '') return null;
+          const n = Number(v);
+          return isNaN(n) ? null : n;
+        };
         const bcByKey = {};
+        const bcByNum = {};
         bcs.forEach(bc => {
-          const key = `${bc.annee}-${bc.numBC}`;
+          const an = toNum(bc.annee);
+          const num = toNum(bc.numBC);
+          if (num == null) return;
+          const key = `${an}-${num}`;
           if (!bcByKey[key]) bcByKey[key] = [];
           bcByKey[key].push(bc);
+          if (!bcByNum[num]) bcByNum[num] = [];
+          bcByNum[num].push(bc);
         });
-        const cmdsEnrichies = cmds.map(c => ({
-          ...c,
-          articles: bcByKey[`${c.anCmd}-${c.numCmd}`] || [],
-        }));
+        const cmdsEnrichies = cmds.map(c => {
+          const an = toNum(c.anCmd);
+          const num = toNum(c.numCmd);
+          let arts = bcByKey[`${an}-${num}`];
+          if (!arts || arts.length === 0) {
+            // Repli : ignorer l'année si aucune correspondance exacte
+            arts = bcByNum[num] || [];
+          }
+          return { ...c, articles: arts };
+        });
 
         setStats({
           kpis, delays, supplierStats, articleStats,
