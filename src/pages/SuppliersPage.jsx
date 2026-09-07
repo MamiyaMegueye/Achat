@@ -4,7 +4,22 @@ import { Clock, TrendingUp, AlertTriangle, PieChart, Users, Search } from 'lucid
 
 export default function SuppliersPage({ supplierStats }) {
   const [sortKey, setSortKey] = useState('montantTotal');
+  const [sortDir, setSortDir] = useState('desc');
   const [search, setSearch] = useState('');
+
+  const toggleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  };
+
+  const SortIcon = ({ col }) => {
+    if (sortKey !== col) return null;
+    return <span style={{ fontSize: '0.65rem', marginLeft: 4 }}>{sortDir === 'asc' ? '▲' : '▼'}</span>;
+  };
 
   const sorted = useMemo(() => {
     let list = [...supplierStats];
@@ -13,13 +28,20 @@ export default function SuppliersPage({ supplierStats }) {
       list = list.filter(f => f.nom.toLowerCase().includes(s));
     }
     list.sort((a, b) => {
-      if (sortKey === 'montantTotal') return b.montantTotal - a.montantTotal;
-      if (sortKey === 'nbCommandes') return b.nbCommandes - a.nbCommandes;
-      if (sortKey === 'delaiMoyen') return b.delaiMoyen - a.delaiMoyen;
+      let va, vb;
+      if (sortKey === 'nom') { va = a.nom.toLowerCase(); vb = b.nom.toLowerCase(); }
+      else if (sortKey === 'montantTotal') { va = a.montantTotal; vb = b.montantTotal; }
+      else if (sortKey === 'nbCommandes') { va = a.nbCommandes; vb = b.nbCommandes; }
+      else if (sortKey === 'delaiMoyen') { va = a.delais.length ? a.delaiMoyen : -1; vb = b.delais.length ? b.delaiMoyen : -1; }
+      else if (sortKey === 'sansReception') { va = a.sansReception; vb = b.sansReception; }
+      else if (sortKey === 'sansPaiement') { va = a.sansPaiement; vb = b.sansPaiement; }
+      else return 0;
+      if (va < vb) return sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
     return list;
-  }, [supplierStats, search, sortKey]);
+  }, [supplierStats, search, sortKey, sortDir]);
 
   // Stats résumé
   const avgDelai = supplierStats.length > 0
@@ -87,11 +109,6 @@ export default function SuppliersPage({ supplierStats }) {
       <div className="card full-width">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <div className="card-title" style={{ marginBottom: 0 }}>Classement fournisseurs</div>
-          <div className="tabs" style={{ marginBottom: 0 }}>
-            <button className={`tab ${sortKey === 'montantTotal' ? 'active' : ''}`} onClick={() => setSortKey('montantTotal')}>Par montant</button>
-            <button className={`tab ${sortKey === 'nbCommandes' ? 'active' : ''}`} onClick={() => setSortKey('nbCommandes')}>Par volume</button>
-            <button className={`tab ${sortKey === 'delaiMoyen' ? 'active' : ''}`} onClick={() => setSortKey('delaiMoyen')}>Par délai</button>
-          </div>
         </div>
 
         <div style={{ position: 'relative', maxWidth: 320, marginBottom: 14 }}>
@@ -110,12 +127,12 @@ export default function SuppliersPage({ supplierStats }) {
             <thead>
               <tr>
                 <th>#</th>
-                <th>Fournisseur</th>
-                <th style={{ textAlign: 'right' }}>Commandes</th>
-                <th style={{ textAlign: 'right' }}>Montant HT</th>
-                <th style={{ textAlign: 'right' }}>Délai moy.</th>
-                <th style={{ textAlign: 'right' }}>Sans réception</th>
-                <th style={{ textAlign: 'right' }}>Sans paiement</th>
+                <th onClick={() => toggleSort('nom')} style={{ cursor: 'pointer' }}>Fournisseur <SortIcon col="nom" /></th>
+                <th onClick={() => toggleSort('nbCommandes')} style={{ textAlign: 'right', cursor: 'pointer' }}>Commandes <SortIcon col="nbCommandes" /></th>
+                <th onClick={() => toggleSort('montantTotal')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant HT <SortIcon col="montantTotal" /></th>
+                <th onClick={() => toggleSort('delaiMoyen')} style={{ textAlign: 'right', cursor: 'pointer' }}>Délai moy. <SortIcon col="delaiMoyen" /></th>
+                <th onClick={() => toggleSort('sansReception')} style={{ textAlign: 'right', cursor: 'pointer' }}>Sans réception <SortIcon col="sansReception" /></th>
+                <th onClick={() => toggleSort('sansPaiement')} style={{ textAlign: 'right', cursor: 'pointer' }}>Sans paiement <SortIcon col="sansPaiement" /></th>
               </tr>
             </thead>
             <tbody>
