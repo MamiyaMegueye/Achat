@@ -85,7 +85,7 @@ export default function EngagementsPage({ cmds }) {
   return (
     <div>
       <div className="page-header">
-        <h1>Engagements</h1>
+        <h1>Échéancier de paiement</h1>
         <p>Factures reçues en attente de paiement</p>
       </div>
 

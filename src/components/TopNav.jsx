@@ -10,7 +10,7 @@ const navItems = [
   { id: 'delays', label: 'Délais', icon: Clock },
   { id: 'suppliers', label: 'Fournisseurs', icon: Users },
   { id: 'articles', label: 'Articles & Prix', icon: Package },
-  { id: 'engagements', label: 'Engagements', icon: Wallet },
+  { id: 'engagements', label: 'Échéancier de paiement', icon: Wallet },
   { id: 'structures', label: 'Structures', icon: Building2 },
   { id: 'anomalies', label: 'Anomalies', icon: FileWarning },
 ];
@@ -50,7 +50,7 @@ export default function TopNav({ activePage, onNavigate, dataLoaded, onExportPdf
             onClick={onExportPdf}
             disabled={exporting}
             className="top-nav-tab"
-            style={{ marginLeft: 'auto', background: exporting ? '#ddd' : '#8a5220', color: 'white', borderRadius: 6, padding: '5px 14px' }}
+            style={{ marginLeft: 'auto', background: exporting ? '#ddd' : '#3d7ea6', color: 'white', borderRadius: 6, padding: '5px 14px' }}
           >
             <FileDown size={15} />
             <span>{exporting ? 'Export...' : 'Exporter PDF'}</span>
