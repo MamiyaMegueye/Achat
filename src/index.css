@@ -2,9 +2,9 @@
 
 :root {
   /* — Palette terracotta doux — */
-  --bg-main: #faf6f0;
+  --bg-main: #ffffff;
   --bg-card: #ffffff;
-  --bg-card-hover: #fdfbf8;
+  --bg-card-hover: #faf9f8;
 
   /* Accents */
   --accent-primary: #c17550;
