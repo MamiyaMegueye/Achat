@@ -91,7 +91,7 @@ export default function EngagementsPage({ cmds }) {
 
       {/* KPIs */}
       <div className="card full-width" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-        <div style={{ background: '#8a5220', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <div style={{ background: '#c17550', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Synthèse des engagements en cours
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid var(--border-light)' }}>
@@ -102,7 +102,7 @@ export default function EngagementsPage({ cmds }) {
           </div>
           <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border-light)' }}>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Fournisseurs concernés</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#8a5220' }}>{nbFrnTotal}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#c17550' }}>{nbFrnTotal}</div>
           </div>
           <div style={{ padding: '14px 18px' }}>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Factures &gt; 90 jours</div>
@@ -120,7 +120,7 @@ export default function EngagementsPage({ cmds }) {
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
         {/* Filtre mois facture */}
         <select value={selectedMois || ''} onChange={e => { setSelectedMois(e.target.value || null); setFrnSelected(new Set()); }}
-          style={{ padding: '7px 12px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem', background: selectedMois ? '#f7ece0' : 'white', color: '#333', cursor: 'pointer' }}>
+          style={{ padding: '7px 12px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem', background: selectedMois ? '#f3e0d5' : 'white', color: '#333', cursor: 'pointer' }}>
           <option value="">Mois facture — tous ({engagements.length})</option>
           {moisList.map(m => (
             <option key={m.mois} value={m.mois}>{fmtMois(m.mois)} — {m.cmds.length} factures · {formatMontant(m.total)} MRU</option>
@@ -136,8 +136,8 @@ export default function EngagementsPage({ cmds }) {
         </select>
         <div style={{ position: 'relative' }}>
           <button onClick={() => setOpenFrnFilter(!openFrnFilter)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', border: '1px solid var(--border-light)', borderRadius: 6, background: frnSelected.size > 0 ? '#f7ece0' : 'white', cursor: 'pointer', fontSize: '0.8rem' }}>
-            <Filter size={13} style={{ color: frnSelected.size > 0 ? '#8a5220' : '#999' }} />
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', border: '1px solid var(--border-light)', borderRadius: 6, background: frnSelected.size > 0 ? '#f3e0d5' : 'white', cursor: 'pointer', fontSize: '0.8rem' }}>
+            <Filter size={13} style={{ color: frnSelected.size > 0 ? '#c17550' : '#999' }} />
             Fournisseur {frnSelected.size > 0 ? `(${frnSelected.size})` : ''}
           </button>
           {openFrnFilter && (
@@ -159,20 +159,20 @@ export default function EngagementsPage({ cmds }) {
                         if (e.target.checked) nw.add(f); else nw.delete(f);
                         setFrnSelected(nw);
                       }}
-                      style={{ accentColor: '#8a5220' }} />
+                      style={{ accentColor: '#c17550' }} />
                     {f}
                   </label>
                 ))}
               </div>
               <div style={{ padding: '8px 12px', borderTop: '1px solid #eee', textAlign: 'right' }}>
                 <button onClick={() => setOpenFrnFilter(false)}
-                  style={{ fontSize: '0.75rem', background: '#8a5220', color: 'white', border: 'none', borderRadius: 4, padding: '5px 16px', cursor: 'pointer' }}>OK</button>
+                  style={{ fontSize: '0.75rem', background: '#c17550', color: 'white', border: 'none', borderRadius: 4, padding: '5px 16px', cursor: 'pointer' }}>OK</button>
               </div>
             </div>
           )}
         </div>
         {frnSelected.size > 0 && (
-          <div style={{ fontSize: '0.78rem', color: '#8a5220' }}>
+          <div style={{ fontSize: '0.78rem', color: '#c17550' }}>
             {cmdsFilterees.length} factures · <strong>{formatMontant(totalFiltre)}</strong> MRU
           </div>
         )}
@@ -198,7 +198,7 @@ export default function EngagementsPage({ cmds }) {
             </thead>
             <tbody>
               {cmdsFilterees.map((e, i) => (
-                <tr key={i} style={{ background: e.joursAttente > 90 ? '#fdf3e4' : undefined }}>
+                <tr key={i} style={{ background: e.joursAttente > 90 ? '#f8f0e8' : undefined }}>
                   <td style={{ fontWeight: 600 }}>{e.numCmd}</td>
                   <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{e.fournisseur}</td>
                   <td style={{ whiteSpace: 'normal', wordBreak: 'break-word', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{e.objet}</td>

@@ -50,6 +50,17 @@ export default function SuppliersPage({ supplierStats }) {
   const nbLents = supplierStats.filter(s => s.delaiMoyen > 60 && s.delais.length >= 3).length;
   const nbSansRec = supplierStats.filter(s => s.sansReception > 0).length;
 
+  // === Fournisseurs inactifs (aucune commande depuis 2 ans, ou date absente) ===
+  const { sansDate, anciens } = useMemo(() => {
+    const seuil = new Date();
+    seuil.setFullYear(seuil.getFullYear() - 2);
+    const sd = supplierStats.filter(s => !s.dateMax);
+    const anc = supplierStats
+      .filter(s => s.dateMax && s.dateMax < seuil)
+      .sort((a, b) => a.dateMax - b.dateMax);
+    return { sansDate: sd, anciens: anc };
+  }, [supplierStats]);
+
   // === Analyse Pareto (80/20) ===
   const pareto = useMemo(() => {
     const total = supplierStats.reduce((s, f) => s + f.montantTotal, 0);
@@ -82,11 +93,11 @@ export default function SuppliersPage({ supplierStats }) {
           <div className="kpi-value" style={{ color: '#2b6e52' }}>{supplierStats.length}</div>
           <div className="kpi-label">Total fournisseurs</div>
         </div>
-        <div className="card kpi-card" style={{ background: '#f7ece0', borderLeft: '2.5px solid #8a5220' }}>
+        <div className="card kpi-card" style={{ background: '#f3e0d5', borderLeft: '2.5px solid #c17550' }}>
           <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.6)' }}>
-            <Clock size={14} style={{ color: '#8a5220' }} />
+            <Clock size={14} style={{ color: '#c17550' }} />
           </div>
-          <div className="kpi-value" style={{ color: '#8a5220' }}>{avgDelai}j</div>
+          <div className="kpi-value" style={{ color: '#c17550' }}>{avgDelai}j</div>
           <div className="kpi-label">Délai moyen global</div>
         </div>
         <div className="card kpi-card" style={{ background: '#fae8e6', borderLeft: '2.5px solid #a63b32' }}>
@@ -96,11 +107,11 @@ export default function SuppliersPage({ supplierStats }) {
           <div className="kpi-value" style={{ color: '#a63b32' }}>{nbLents}</div>
           <div className="kpi-label">Fournisseurs lents (&gt;60j)</div>
         </div>
-        <div className="card kpi-card" style={{ background: '#fdf3e4', borderLeft: '2.5px solid #8a5e16' }}>
+        <div className="card kpi-card" style={{ background: '#eef0e2', borderLeft: '2.5px solid #7d8a4f' }}>
           <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.6)' }}>
-            <TrendingUp size={14} style={{ color: '#8a5e16' }} />
+            <TrendingUp size={14} style={{ color: '#7d8a4f' }} />
           </div>
-          <div className="kpi-value" style={{ color: '#8a5e16' }}>{nbSansRec}</div>
+          <div className="kpi-value" style={{ color: '#7d8a4f' }}>{nbSansRec}</div>
           <div className="kpi-label">Avec livraisons manquantes</div>
         </div>
       </div>
@@ -165,9 +176,83 @@ export default function SuppliersPage({ supplierStats }) {
         </div>
       </div>
 
+      {/* === Fournisseurs sans date de commande === */}
+      <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ background: '#c17550', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertTriangle size={15} /> Fournisseurs sans date de commande
+        </div>
+        <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border-light)' }}>
+          <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            <span style={{ color: '#c17550' }}>{sansDate.length} fournisseurs</span> n'ont aucune date de commande enregistrée dans les données
+          </div>
+        </div>
+        <div style={{ padding: '0 16px 16px', maxHeight: 350, overflowY: 'auto' }}>
+          {sansDate.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Aucun fournisseur concerné.</div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Fournisseur</th>
+                  <th style={{ textAlign: 'right' }}>Nb commandes</th>
+                  <th style={{ textAlign: 'right' }}>Montant HT total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sansDate.map((s, i) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: 500, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nom}</td>
+                    <td className="amount">{s.nbCommandes}</td>
+                    <td className="amount">{formatMontant(s.montantTotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* === Fournisseurs sans commande depuis 2 ans === */}
+      <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ background: '#6b6b6b', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertTriangle size={15} /> Fournisseurs sans commande depuis 2 ans
+        </div>
+        <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border-light)' }}>
+          <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            <span style={{ color: '#6b6b6b' }}>{anciens.length} fournisseurs</span> dont la dernière commande date de plus de 2 ans
+          </div>
+        </div>
+        <div style={{ padding: '0 16px 16px', maxHeight: 350, overflowY: 'auto' }}>
+          {anciens.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Aucun fournisseur concerné.</div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Fournisseur</th>
+                  <th style={{ textAlign: 'right' }}>Nb commandes</th>
+                  <th style={{ textAlign: 'right' }}>Montant HT total</th>
+                  <th style={{ textAlign: 'right' }}>Dernière commande</th>
+                </tr>
+              </thead>
+              <tbody>
+                {anciens.map((s, i) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: 500, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nom}</td>
+                    <td className="amount">{s.nbCommandes}</td>
+                    <td className="amount">{formatMontant(s.montantTotal)}</td>
+                    <td className="amount">{s.dateMax.toLocaleDateString('fr-FR')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
       {/* === Analyse Pareto (80/20) === */}
       <div className="card full-width" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ background: '#7c3a2e', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ background: '#8a9a5b', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 8 }}>
           <PieChart size={15} /> Concentration des achats — Principe de Pareto
         </div>
 

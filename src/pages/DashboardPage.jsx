@@ -18,7 +18,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
   const statusData = [
     { name: 'Payées', value: kpis.payees, color: '#3d8b6e', bg: '#e4f2ec' },
     { name: 'Facturées', value: kpis.facturees - kpis.payees, color: '#7b6fa0', bg: '#edeaf4' },
-    { name: 'Réceptionnées', value: kpis.receptionnees - kpis.facturees, color: '#d4975a', bg: '#fdf3e4' },
+    { name: 'Réceptionnées', value: kpis.receptionnees - kpis.facturees, color: '#d99870', bg: '#f8f0e8' },
     { name: 'Non réceptionnée', value: kpis.totalCmds - kpis.receptionnees, color: '#c44a3f', bg: '#fae8e6' },
   ].filter(d => d.value > 0);
 
@@ -130,7 +130,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
   const statutColors = {
     'Payée': { color: '#2b6e52', bg: '#e4f2ec' },
     'Facturée': { color: '#5e5288', bg: '#edeaf4' },
-    'Réceptionnée': { color: '#a06a25', bg: '#fdf3e4' },
+    'Réceptionnée': { color: '#b8663f', bg: '#f8f0e8' },
     'Non réceptionnée': { color: '#a63b32', bg: '#fae8e6' },
   };
 
@@ -151,12 +151,12 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)' }}>
           <div style={{ padding: '16px 18px', borderRight: '1px solid var(--border-light)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: '#f7ece0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ShoppingCart size={13} style={{ color: '#8a5220' }} />
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: '#f3e0d5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ShoppingCart size={13} style={{ color: '#c17550' }} />
               </div>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>Commandes</span>
             </div>
-            <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#8a5220' }}>{kpis.totalCmds}</div>
+            <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#c17550' }}>{kpis.totalCmds}</div>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>{kpis.totalArticles} articles</div>
           </div>
 
@@ -213,7 +213,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
             <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#a63b32', cursor: 'pointer', textDecoration: 'underline dotted' }} onClick={() => setShowAnnulees('annulees')}>{cmdsAnnulees}</div>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>montant = 0</div>
             {cmdsSansMontant > 0 && (
-              <div style={{ fontSize: '0.65rem', color: '#c48520', marginTop: 2, cursor: 'pointer', textDecoration: 'underline dotted' }} onClick={() => setShowAnnulees('sansMontant')}>{cmdsSansMontant} sans montant</div>
+              <div style={{ fontSize: '0.65rem', color: '#cc8560', marginTop: 2, cursor: 'pointer', textDecoration: 'underline dotted' }} onClick={() => setShowAnnulees('sansMontant')}>{cmdsSansMontant} sans montant</div>
             )}
           </div>
         </div>
@@ -224,7 +224,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowAnnulees(null)}>
           <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 800, width: '90%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, color: showAnnulees === 'annulees' ? '#a63b32' : '#c48520' }}>
+              <h3 style={{ margin: 0, color: showAnnulees === 'annulees' ? '#a63b32' : '#cc8560' }}>
                 {showAnnulees === 'annulees' ? `Commandes annulées (${cmdsAnnulees})` : `Commandes sans montant (${cmdsSansMontant})`}
               </h3>
               <button onClick={() => setShowAnnulees(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><X size={18} /></button>

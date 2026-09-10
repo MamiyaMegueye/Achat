@@ -211,7 +211,7 @@ function DelaysContent({ delays, cmds = [] }) {
     'En retard': { color: '#a63b32', bg: '#fae8e6' },
     'À temps': { color: '#2b6e52', bg: '#e4f2ec' },
     'Non réceptionnée - en retard': { color: '#a63b32', bg: '#fae8e6' },
-    'Non réceptionnée - en attente': { color: '#a06a25', bg: '#fdf3e4' },
+    'Non réceptionnée - en attente': { color: '#b8663f', bg: '#f8f0e8' },
     'Non réceptionnée - sans délai': { color: '#7b6fa0', bg: '#edeaf4' },
     'Réceptionnée - sans délai prévu': { color: '#5a9bb5', bg: '#e5f1f6' },
     'Annulée': { color: '#8a8a8a', bg: '#eeeeee' },

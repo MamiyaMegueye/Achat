@@ -55,11 +55,11 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
 
       {/* Bilan financier global */}
       <div className="card full-width" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-        <div style={{ background: '#8a5220', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Bilan financier global</div>
+        <div style={{ background: '#c17550', color: 'white', padding: '10px 16px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Bilan financier global</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid var(--border-light)' }}>
           <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border-light)' }}>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Total commandé (TTC)</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#8a5220' }}>{formatMontant(totalTTC)}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#c17550' }}>{formatMontant(totalTTC)}</div>
             <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>MRU · {cmds.length} commandes</div>
           </div>
           <div style={{ padding: '14px 18px', borderRight: '1px solid var(--border-light)' }}>
@@ -92,11 +92,11 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
 
       {/* KPIs */}
       <div className="grid-3">
-        <div className="card kpi-card" style={{ background: '#fdf3e4', borderLeft: '2.5px solid #c48520' }}>
+        <div className="card kpi-card" style={{ background: '#f8f0e8', borderLeft: '2.5px solid #cc8560' }}>
           <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.6)' }}>
-            <FileX size={14} style={{ color: '#c48520' }} />
+            <FileX size={14} style={{ color: '#cc8560' }} />
           </div>
-          <div className="kpi-value" style={{ color: '#8a5e16' }}>{missingDocs.sansFacture.length}</div>
+          <div className="kpi-value" style={{ color: '#7d8a4f' }}>{missingDocs.sansFacture.length}</div>
           <div className="kpi-label">Réceptionnées sans facture</div>
         </div>
         <div className="card kpi-card" style={{ background: '#fae8e6', borderLeft: '2.5px solid #a63b32' }}>
@@ -117,7 +117,7 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
 
       {/* Réceptionnées sans facture */}
       <div className="card full-width">
-        <div style={{ background: '#b06830', color: 'white', padding: '10px 16px', borderRadius: '8px 8px 0 0', margin: '-24px -24px 16px -24px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Commandes réceptionnées sans facture enregistrée</div>
+        <div style={{ background: '#c17550', color: 'white', padding: '10px 16px', borderRadius: '8px 8px 0 0', margin: '-24px -24px 16px -24px', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Commandes réceptionnées sans facture enregistrée</div>
         {missingDocs.sansFacture.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Aucune anomalie</div>
         ) : (
@@ -133,7 +133,7 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
               </thead>
               <tbody>
                 {missingDocs.sansFacture.map((c, i) => (
-                  <tr key={i} style={{ background: i % 2 === 0 ? '#fdf3e4' : '#fae8e6' }}>
+                  <tr key={i} style={{ background: i % 2 === 0 ? '#f8f0e8' : '#fae8e6' }}>
                     <td style={{ fontWeight: 500 }}>{c.numCmd}</td>
                     <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {c.fournisseur}

@@ -199,8 +199,8 @@ export default function FileUpload({ onDataImported, dataCounts }) {
           onFile={f => handleFile(f, 'bc')}
           status={bcStatus}
           accept=".xlsx,.xls"
-          color="#b06830"
-          bgColor="#f7ece0"
+          color="#c17550"
+          bgColor="#f3e0d5"
         />
         <UploadBox
           step="2"

@@ -186,7 +186,7 @@ export default function App() {
             <div style={{ fontSize: '1rem', fontWeight: 600, color: '#333', marginBottom: 8 }}>
               Export PDF en cours...
             </div>
-            <div style={{ fontSize: '0.85rem', color: '#8a5220' }}>{exportProgress}</div>
+            <div style={{ fontSize: '0.85rem', color: '#c17550' }}>{exportProgress}</div>
           </div>
         </div>
       )}
