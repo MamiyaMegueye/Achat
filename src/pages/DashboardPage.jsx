@@ -34,6 +34,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     datRecMin: '', datRecMax: '',
     factDateFrMin: '', factDateFrMax: '',
     paiementDateMin: '', paiementDateMax: '',
+    montantMin: '', montantMax: '',
   });
   const setColFilter = (key, val) => setColFilters(f => ({ ...f, [key]: val }));
   const hasColFilters = Object.values(colFilters).some(v => v);
@@ -45,6 +46,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     datRecMin: '', datRecMax: '',
     factDateFrMin: '', factDateFrMax: '',
     paiementDateMin: '', paiementDateMax: '',
+    montantMin: '', montantMax: '',
   });
 
   const inDateRange = (val, min, max) => {
@@ -156,6 +158,13 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     rows = rows.filter(c => inDateRange(c.datRec, colFilters.datRecMin, colFilters.datRecMax));
     rows = rows.filter(c => inDateRange(c.factDateFr, colFilters.factDateFrMin, colFilters.factDateFrMax));
     rows = rows.filter(c => inDateRange(c.paiementDate, colFilters.paiementDateMin, colFilters.paiementDateMax));
+
+    if (colFilters.montantMin !== '') {
+      rows = rows.filter(c => (c.montTTC || c.montHT || 0) >= Number(colFilters.montantMin));
+    }
+    if (colFilters.montantMax !== '') {
+      rows = rows.filter(c => (c.montTTC || c.montHT || 0) <= Number(colFilters.montantMax));
+    }
 
     rows.sort((a, b) => {
       let va = a[sortKey], vb = b[sortKey];
@@ -538,7 +547,14 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                     <input type="date" value={colFilters.paiementDateMax} onChange={e => setColFilter('paiementDateMax', e.target.value)} style={colFilterDateStyle} />
                   </div>
                 </th>
-                <th></th>
+                <th>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <input type="number" value={colFilters.montantMin} onChange={e => setColFilter('montantMin', e.target.value)}
+                      placeholder="min" style={colFilterInputStyle} />
+                    <input type="number" value={colFilters.montantMax} onChange={e => setColFilter('montantMax', e.target.value)}
+                      placeholder="max" style={colFilterInputStyle} />
+                  </div>
+                </th>
                 <th></th>
               </tr>
             </thead>
