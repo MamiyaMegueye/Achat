@@ -79,7 +79,11 @@ export function extractCaracteristiquesStructurees(texte) {
   if (m.hmt) result.hmt = parseFloat(m.hmt[1].replace(',', '.'));
   if (m.section) result.section = parseFloat(m.section[1].replace(',', '.'));
   if (m.vitesse) result.vitesse = parseFloat(m.vitesse[1].replace(',', '.'));
-  if (m.poids) result.poids = parseFloat(m.poids[1].replace(',', '.'));
+  if (m.poids) {
+    let val = parseFloat(m.poids[1].replace(',', '.'));
+    if (m.poids[2].startsWith('t')) val *= 1000; // normaliser tonnes → kg
+    result.poidsKg = val;
+  }
   if (m.batterie) result.batterie = parseFloat(m.batterie[1].replace(',', '.'));
   if (m.memoire) {
     let val = parseFloat(m.memoire[1].replace(',', '.'));
@@ -112,7 +116,10 @@ export function extractCaracteristiques(texte) {
   if (m.hmt) resultats.push(`HMT ${m.hmt[1].replace(',', '.')}m`);
   if (m.section) resultats.push(`${m.section[1].replace(',', '.')} mm²`);
   if (m.vitesse) resultats.push(`${m.vitesse[1].replace(',', '.')} tr/min`);
-  if (m.poids) resultats.push(`${m.poids[1].replace(',', '.')} kg`);
+  if (m.poids) {
+    const unite = m.poids[2].startsWith('t') ? 'T' : 'kg';
+    resultats.push(`${m.poids[1].replace(',', '.')} ${unite}`);
+  }
   if (m.batterie) resultats.push(`${m.batterie[1].replace(',', '.')} Ah`);
   if (m.memoire) resultats.push(`${m.memoire[1].replace(',', '.')} ${m.memoire[2].toUpperCase()}`);
 
