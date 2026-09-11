@@ -38,6 +38,7 @@ export default function ArticlesPage({ articleStats }) {
     }
     if (natureFilter) {
       list = list.filter(a => (a.natureArticle || '').trim() === natureFilter.trim());
+      console.log('[DIAG Nature Filter]', { natureFilter, avant: referentielAvecCarac.length, apres: list.length, exemples: referentielAvecCarac.slice(0, 3).map(a => a.natureArticle) });
     }
     if (caracSearch.trim()) {
       list = list.filter(a => matchesAnySearch([a._caracText], caracSearch));
