@@ -55,6 +55,7 @@ export default function ArticlesPage({ articleStats }) {
         date: e.date ? new Date(e.date).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }) : '?',
         prix: e.pu,
         fournisseur: e.fournisseur,
+        numBC: e.numBC,
       }))
     : [];
 
@@ -230,8 +231,18 @@ export default function ArticlesPage({ articleStats }) {
                     <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} />
                     <YAxis tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} />
                     <Tooltip
-                      formatter={(v) => [`${formatMontant(v)} MRU`, 'Prix unitaire']}
-                      contentStyle={{ borderRadius: 8, border: '1px solid var(--border)', fontSize: '0.8rem' }}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload || !payload.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: '0.78rem' }}>
+                            <div style={{ fontWeight: 600 }}>{label}</div>
+                            <div>{formatMontant(d.prix)} MRU</div>
+                            <div style={{ color: 'var(--text-secondary)' }}>BC N° {d.numBC || '—'}</div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{d.fournisseur}</div>
+                          </div>
+                        );
+                      }}
                     />
                     <Line type="monotone" dataKey="prix" stroke="var(--accent-primary)" strokeWidth={2} dot={{ r: 4, fill: 'var(--accent-primary)' }} />
                   </LineChart>
