@@ -22,6 +22,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
   // Recherche + filtres du tableau de suivi
   const [search, setSearch] = useState('');
   const [statutFilter, setStatutFilter] = useState('');
+  const [anneeFilter, setAnneeFilter] = useState('');
   const [sortKey, setSortKey] = useState('datCde');
   const [sortDir, setSortDir] = useState('desc');
 
@@ -145,6 +146,10 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
       rows = rows.filter(c => c.statut === statutFilter);
     }
 
+    if (anneeFilter) {
+      rows = rows.filter(c => String(c.anCmd) === anneeFilter);
+    }
+
     if (colFilters.fournisseur) {
       rows = rows.filter(c => matchesAnySearch([c.nomFrn || ''], colFilters.fournisseur));
     }
@@ -191,7 +196,12 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     });
 
     return rows;
-  }, [cmds, search, statutFilter, sortKey, sortDir, colFilters]);
+  }, [cmds, search, statutFilter, anneeFilter, sortKey, sortDir, colFilters]);
+
+  const anneesDisponibles = useMemo(
+    () => [...new Set(cmds.map(c => c.anCmd).filter(Boolean))].sort((a, b) => b - a),
+    [cmds]
+  );
 
   const toggleSort = (key) => {
     if (sortKey === key) {
@@ -472,9 +482,20 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
             <option value="Réceptionnée">Réceptionnée</option>
             <option value="Non réceptionnée">Non réceptionnée</option>
           </select>
-          {(search || statutFilter || hasColFilters) && (
+          <select
+            value={anneeFilter}
+            onChange={e => setAnneeFilter(e.target.value)}
+            style={{
+              padding: '8px 12px', border: '1px solid var(--border-light)',
+              borderRadius: 6, fontSize: '0.82rem', background: 'white', minWidth: 120,
+            }}
+          >
+            <option value="">Toutes années</option>
+            {anneesDisponibles.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          {(search || statutFilter || anneeFilter || hasColFilters) && (
             <button
-              onClick={() => { setSearch(''); setStatutFilter(''); resetColFilters(); }}
+              onClick={() => { setSearch(''); setStatutFilter(''); setAnneeFilter(''); resetColFilters(); }}
               style={{
                 padding: '8px 12px', border: '1px solid var(--border-light)',
                 borderRadius: 6, fontSize: '0.78rem', background: 'var(--bg-main)',
@@ -491,6 +512,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
             <thead>
               <tr>
                 <th onClick={() => toggleSort('numCmd')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>N° CMD <SortIcon col="numCmd" /></th>
+                <th onClick={() => toggleSort('anCmd')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Année <SortIcon col="anCmd" /></th>
                 <th onClick={() => toggleSort('nomFrn')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Fournisseur <SortIcon col="nomFrn" /></th>
                 <th style={{ whiteSpace: 'nowrap' }}>Article</th>
                 <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Prix unitaire</th>
@@ -580,6 +602,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                 return (
                   <tr key={i}>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{c.numCmd}</td>
+                    <td style={{ fontSize: '0.78rem' }}>{c.anCmd || '—'}</td>
                     <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nomFrn || '—'}</td>
                     <td style={{ maxWidth: 200, fontSize: '0.78rem' }} title={(c.articles || []).map(a => a.article).join(', ')}>
                       {c.articles && c.articles.length > 0 ? (
