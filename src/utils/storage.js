@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'snde-achats';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 async function getDB() {
   return openDB(DB_NAME, DB_VERSION, {
@@ -25,6 +25,9 @@ async function getDB() {
       }
       if (!db.objectStoreNames.contains('categorisation')) {
         db.createObjectStore('categorisation', { keyPath: '_id', autoIncrement: true });
+      }
+      if (!db.objectStoreNames.contains('article_categorisation')) {
+        db.createObjectStore('article_categorisation', { keyPath: 'codeArticle' });
       }
     }
   });
@@ -145,6 +148,28 @@ export async function getAllCategorisation() {
   return db.getAll('categorisation');
 }
 
+// --- Catégorisation détaillée par article (Fichier 4, optionnel) ---
+// codeArticle -> { categorie, sousType, grandeCategorie }
+
+export async function importArticleCategorisation(rows) {
+  const db = await getDB();
+  const tx = db.transaction('article_categorisation', 'readwrite');
+  const store = tx.objectStore('article_categorisation');
+  let added = 0;
+  for (const row of rows) {
+    if (!row.codeArticle) continue;
+    await store.put(row);
+    added++;
+  }
+  await tx.done;
+  return { added };
+}
+
+export async function getAllArticleCategorisation() {
+  const db = await getDB();
+  return db.getAll('article_categorisation');
+}
+
 // --- Utils ---
 
 export async function getImportLog() {
@@ -166,6 +191,9 @@ export async function clearAllData() {
   const tx4 = db.transaction('categorisation', 'readwrite');
   await tx4.objectStore('categorisation').clear();
   await tx4.done;
+  const tx5 = db.transaction('article_categorisation', 'readwrite');
+  await tx5.objectStore('article_categorisation').clear();
+  await tx5.done;
 }
 
 export async function getDataCounts() {
@@ -173,5 +201,6 @@ export async function getDataCounts() {
   const bcCount = await db.count('bons_commande');
   const cmdCount = await db.count('suivi_cmd');
   const categorisationCount = await db.count('categorisation');
-  return { bcCount, cmdCount, categorisationCount };
+  const articleCategorisationCount = await db.count('article_categorisation');
+  return { bcCount, cmdCount, categorisationCount, articleCategorisationCount };
 }

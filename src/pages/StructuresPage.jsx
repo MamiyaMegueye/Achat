@@ -153,7 +153,8 @@ export default function StructuresPage({ structureStats, categorisation = [] }) 
               <thead>
                 <tr>
                   <th>Structure</th>
-                  <th>Grande catégorie</th>
+                  <th>Nom Structure</th>
+                  <th>Domaine d'achat</th>
                   <th>Catégorie</th>
                   <th>Nature d'article</th>
                   <th style={{ textAlign: 'right' }}>Nb lignes</th>
@@ -164,7 +165,8 @@ export default function StructuresPage({ structureStats, categorisation = [] }) 
               <tbody>
                 {filteredCategorisation.slice(0, 300).map((r, i) => (
                   <tr key={i}>
-                    <td style={{ fontWeight: 500 }}>{r.structure}{r.nomStructure ? ` — ${r.nomStructure}` : ''}</td>
+                    <td style={{ fontWeight: 600 }}>{r.structure}</td>
+                    <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{r.nomStructure || '—'}</td>
                     <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{r.grandeCategorie}</td>
                     <td style={{ fontSize: '0.78rem' }}>{r.categorie}</td>
                     <td style={{ fontSize: '0.78rem', fontWeight: 500 }}>{r.sousType}</td>

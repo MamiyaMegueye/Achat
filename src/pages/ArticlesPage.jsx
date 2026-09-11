@@ -9,14 +9,19 @@ import { Search, X } from 'lucide-react';
 export default function ArticlesPage({ articleStats }) {
   const { referentiel = [] } = articleStats;
   const [search, setSearch] = useState('');
+  const [searchObjet, setSearchObjet] = useState('');
   const [selected, setSelected] = useState(null);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return referentiel;
-    return referentiel.filter(a =>
-      matchesAnySearch([a.label, a.code, ...a.objets], search)
-    );
-  }, [referentiel, search]);
+    let list = referentiel;
+    if (search.trim()) {
+      list = list.filter(a => matchesAnySearch([a.label, a.code], search));
+    }
+    if (searchObjet.trim()) {
+      list = list.filter(a => matchesAnySearch(a.objets, searchObjet));
+    }
+    return list;
+  }, [referentiel, search, searchObjet]);
 
   const chartData = selected
     ? selected.entries.map(e => ({
@@ -38,15 +43,27 @@ export default function ArticlesPage({ articleStats }) {
       </div>
 
       <div className="card full-width">
-        <div style={{ position: 'relative', maxWidth: 420, marginBottom: 14 }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input
-            type="text"
-            placeholder="Rechercher par article ou objet..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem' }}
-          />
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 260px' }}>
+            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Rechercher par article..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem' }}
+            />
+          </div>
+          <div style={{ position: 'relative', flex: '1 1 260px' }}>
+            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Rechercher par objet..."
+              value={searchObjet}
+              onChange={e => setSearchObjet(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem' }}
+            />
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: selected ? '1.3fr 1fr' : '1fr', gap: 16 }}>
@@ -57,6 +74,7 @@ export default function ArticlesPage({ articleStats }) {
                 <thead>
                   <tr>
                     <th>Article</th>
+                    <th>Nature d'article</th>
                     <th style={{ textAlign: 'right' }}>PU actuel</th>
                     <th style={{ textAlign: 'right' }}>PU min - max</th>
                     <th style={{ textAlign: 'right' }}>Nb cmd</th>
@@ -70,6 +88,7 @@ export default function ArticlesPage({ articleStats }) {
                       style={{ cursor: 'pointer', background: selected?.code === a.code ? 'var(--accent-primary-light)' : undefined }}
                     >
                       <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label || a.code}</td>
+                      <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{a.natureArticle || '—'}</td>
                       <td className="amount">{formatMontant(a.puActuel)}</td>
                       <td className="amount" style={{ fontSize: '0.78rem' }}>
                         {a.puMin === a.puMax ? formatMontant(a.puMin) : `${formatMontant(a.puMin)} – ${formatMontant(a.puMax)}`}
@@ -93,7 +112,12 @@ export default function ArticlesPage({ articleStats }) {
           {selected && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div className="card-title" style={{ marginBottom: 0 }}>{selected.label || selected.code}</div>
+                <div>
+                  <div className="card-title" style={{ marginBottom: 0 }}>{selected.label || selected.code}</div>
+                  {selected.natureArticle && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{selected.natureArticle}</div>
+                  )}
+                </div>
                 <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                   <X size={16} />
                 </button>

@@ -239,6 +239,60 @@ export function parseSuiviCmd(workbook) {
 
 // --- Read file as workbook ---
 
+// --- Parseur du fichier de catégorisation (Structure × Catégorie × Sous-type) ---
+// Format attendu (feuille "Detail" de stats_structure_sous_type.xlsx) :
+// Structure | Nom Structure | Annee | Grande categorie | Categorie | Sous-type |
+// Nb lignes | Montant HT | Total structure | % de la structure | Voir source
+
+export function parseStructureCategorisation(workbook) {
+  const sheetName = workbook.SheetNames.includes('Detail') ? 'Detail' : workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+  const colNames = rows.length > 0 ? Object.keys(rows[0]) : [];
+
+  return rows.map(r => {
+    const get = makeGetter(r, colNames);
+    return {
+      structure: String(get('Structure') || '').trim(),
+      nomStructure: String(get('Nom Structure') || '').trim(),
+      annee: get('Annee', 'Année') != null ? Number(get('Annee', 'Année')) : null,
+      grandeCategorie: String(get('Grande categorie', 'Grande catégorie') || '').trim(),
+      categorie: String(get('Categorie', 'Catégorie') || '').trim(),
+      sousType: String(get('Sous-type', 'Sous type', 'SousType') || '').trim(),
+      nbLignes: Number(get('Nb lignes')) || 0,
+      montantHT: Number(get('Montant HT')) || 0,
+      totalStructure: Number(get('Total structure')) || 0,
+      pctStructure: Number(get('% de la structure')) || 0,
+    };
+  }).filter(r => r.structure);
+}
+
+// --- Parseur du fichier de catégorisation détaillée par article ---
+// Format attendu (articles_categorises.xlsx) :
+// CODE ARTICLE | ARTICLE | OBJET | ... | grande_categorie | categorie | sous_type
+
+export function parseArticleCategorisation(workbook) {
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+  const colNames = rows.length > 0 ? Object.keys(rows[0]) : [];
+
+  return rows.map(r => {
+    const get = makeGetter(r, colNames);
+    const codeRaw = get('CODE ARTICLE', 'CODE_ARTICLE');
+    const codeArticle = codeRaw != null
+      ? (typeof codeRaw === 'number' ? String(Math.trunc(codeRaw)) : String(codeRaw).trim())
+      : null;
+    return {
+      codeArticle,
+      grandeCategorie: String(get('grande_categorie', 'Grande categorie', 'Grande catégorie') || '').trim(),
+      categorie: String(get('categorie', 'Categorie', 'Catégorie') || '').trim(),
+      sousType: String(get('sous_type', 'Sous-type', 'Sous type') || '').trim(),
+    };
+  }).filter(r => r.codeArticle);
+}
+
 export function readExcelFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

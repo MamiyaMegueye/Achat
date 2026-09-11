@@ -1,19 +1,21 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Trash2, Database, ArrowRight } from 'lucide-react';
-import { readExcelFile, parseBonsCommande, parseSuiviCmd, parseStructureCategorisation } from '../utils/dataProcessor';
-import { importBonsCommande, importSuiviCmd, importCategorisation, clearAllData, getDataCounts } from '../utils/storage';
+import { readExcelFile, parseBonsCommande, parseSuiviCmd, parseStructureCategorisation, parseArticleCategorisation } from '../utils/dataProcessor';
+import { importBonsCommande, importSuiviCmd, importCategorisation, importArticleCategorisation, clearAllData, getDataCounts } from '../utils/storage';
 
 export default function FileUpload({ onDataImported, dataCounts }) {
   const [bcStatus, setBcStatus] = useState(null);
   const [cmdStatus, setCmdStatus] = useState(null);
   const [catStatus, setCatStatus] = useState(null);
+  const [artCatStatus, setArtCatStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const bcRef = useRef();
   const cmdRef = useRef();
   const catRef = useRef();
+  const artCatRef = useRef();
 
   const handleFile = async (file, type) => {
-    const setter = type === 'bc' ? setBcStatus : type === 'cmd' ? setCmdStatus : setCatStatus;
+    const setter = type === 'bc' ? setBcStatus : type === 'cmd' ? setCmdStatus : type === 'cat' ? setCatStatus : setArtCatStatus;
     setter({ status: 'loading', message: 'Lecture du fichier...' });
     setLoading(true);
 
@@ -46,12 +48,20 @@ export default function FileUpload({ onDataImported, dataCounts }) {
           count: rows.length,
           diag,
         });
-      } else {
+      } else if (type === 'cat') {
         const rows = parseStructureCategorisation(wb);
         const result = await importCategorisation(rows);
         setter({
           status: 'success',
           message: `${result.added} lignes de catégorisation importées`,
+          count: rows.length,
+        });
+      } else {
+        const rows = parseArticleCategorisation(wb);
+        const result = await importArticleCategorisation(rows);
+        setter({
+          status: 'success',
+          message: `${result.added} articles catégorisés importés`,
           count: rows.length,
         });
       }
@@ -70,6 +80,7 @@ export default function FileUpload({ onDataImported, dataCounts }) {
       setBcStatus(null);
       setCmdStatus(null);
       setCatStatus(null);
+      setArtCatStatus(null);
       onDataImported();
     }
   };
@@ -190,6 +201,7 @@ export default function FileUpload({ onDataImported, dataCounts }) {
               <div style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--text-primary)' }}>
                 {dataCounts.bcCount} articles · {dataCounts.cmdCount} commandes
                 {dataCounts.categorisationCount > 0 && ` · ${dataCounts.categorisationCount} lignes de catégorisation`}
+                {dataCounts.articleCategorisationCount > 0 && ` · ${dataCounts.articleCategorisationCount} articles catégorisés`}
               </div>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>Données actuellement en base</div>
             </div>
@@ -228,7 +240,7 @@ export default function FileUpload({ onDataImported, dataCounts }) {
         />
       </div>
 
-      <div style={{ maxWidth: 420, margin: '0 auto' }}>
+      <div style={{ maxWidth: 420, margin: '0 auto', display: 'grid', gap: 12 }}>
         <UploadBox
           step="3"
           label="Catégorisation (optionnel)"
@@ -240,6 +252,18 @@ export default function FileUpload({ onDataImported, dataCounts }) {
           accept=".xlsx,.xls"
           color="#8a9a5b"
           bgColor="#eef0e2"
+        />
+        <UploadBox
+          step="4"
+          label="Catégorisation par article (optionnel)"
+          detail="Nature d'article pour le Référentiel Prix"
+          description="articles_categorises"
+          inputRef={artCatRef}
+          onFile={f => handleFile(f, 'artcat')}
+          status={artCatStatus}
+          accept=".xlsx,.xls"
+          color="#a0785f"
+          bgColor="#f3e8dc"
         />
       </div>
 

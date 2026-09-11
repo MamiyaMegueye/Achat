@@ -9,7 +9,7 @@ import AlertsPage from './pages/AlertsPage';
 import StructuresPage from './pages/StructuresPage';
 import AnomaliesPage from './pages/AnomaliesPage';
 import EngagementsPage from './pages/EngagementsPage';
-import { getAllBonsCommande, getAllSuiviCmd, getDataCounts } from './utils/storage';
+import { getAllBonsCommande, getAllSuiviCmd, getAllCategorisation, getAllArticleCategorisation, getDataCounts } from './utils/storage';
 import {
   computeKPIs, computeDelays, computeSupplierStats,
   computeArticleStats, computePaymentAlerts,
@@ -21,7 +21,7 @@ import { exportAllPagesPdf } from './utils/exportPdf';
 
 export default function App() {
   const [activePage, setActivePage] = useState('import');
-  const [dataCounts, setDataCounts] = useState({ bcCount: 0, cmdCount: 0 });
+  const [dataCounts, setDataCounts] = useState({ bcCount: 0, cmdCount: 0, categorisationCount: 0 });
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -49,15 +49,29 @@ export default function App() {
       setDataCounts(counts);
 
       if (counts.bcCount > 0 || counts.cmdCount > 0) {
-        const [bcs, cmds] = await Promise.all([
+        const [bcs, cmds, categorisation, articleCategorisation] = await Promise.all([
           getAllBonsCommande(),
-          getAllSuiviCmd()
+          getAllSuiviCmd(),
+          getAllCategorisation(),
+          getAllArticleCategorisation(),
         ]);
 
         const kpis = computeKPIs(cmds, bcs);
         const delays = computeDelays(cmds);
         const supplierStats = computeSupplierStats(cmds);
         const articleStats = computeArticleStats(bcs);
+
+        // Enrichir le référentiel prix avec la Nature d'article (si catégorisation détaillée importée)
+        if (articleCategorisation.length > 0) {
+          const artCatByCode = {};
+          articleCategorisation.forEach(a => { artCatByCode[a.codeArticle] = a; });
+          articleStats.referentiel = articleStats.referentiel.map(a => {
+            const found = artCatByCode[a.code];
+            return found
+              ? { ...a, natureArticle: found.sousType, categorie: found.categorie, grandeCategorie: found.grandeCategorie }
+              : a;
+          });
+        }
         const paymentAlerts = computePaymentAlerts(cmds);
         const structureStats = computeStructureStats(bcs);
         const missingDocs = computeMissingDocs(cmds);
@@ -95,7 +109,8 @@ export default function App() {
 
         setStats({
           kpis, delays, supplierStats, articleStats,
-          paymentAlerts, structureStats, missingDocs, cmds: cmdsEnrichies, seasonality, dependencyStats
+          paymentAlerts, structureStats, missingDocs, cmds: cmdsEnrichies, seasonality, dependencyStats,
+          categorisation,
         });
 
         if (activePage === 'import' && counts.bcCount > 0 && counts.cmdCount > 0) {
@@ -156,7 +171,7 @@ export default function App() {
       case 'engagements':
         return <EngagementsPage cmds={stats.cmds} />;
       case 'structures':
-        return <StructuresPage structureStats={stats.structureStats} />;
+        return <StructuresPage structureStats={stats.structureStats} categorisation={stats.categorisation} />;
       case 'anomalies':
         return <AnomaliesPage missingDocs={stats.missingDocs} cmds={stats.cmds} />;
       default:
