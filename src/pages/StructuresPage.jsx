@@ -78,10 +78,10 @@ export default function StructuresPage({ structureStats, categorisation = [], st
 
       <div className="card full-width">
         <div className="card-title">Montant des achats par structure (milliers MRU)</div>
-        <ResponsiveContainer width="100%" height={380}>
-          <BarChart data={chartData}>
+        <ResponsiveContainer width="100%" height={520}>
+          <BarChart data={chartData} margin={{ bottom: 140 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} angle={-30} textAnchor="end" height={60} />
+            <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} angle={-55} textAnchor="end" interval={0} height={140} />
             <YAxis tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
             <Tooltip
               formatter={v => [`${formatMontant(v * 1000)} MRU`, 'Montant']}
