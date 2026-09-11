@@ -63,9 +63,19 @@ export default function ArticlesPage({ articleStats }) {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Référentiel Prix</h1>
-        <p>{referentiel.length} articles référencés — base de prix par article</p>
+      <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h1>Référentiel Prix</h1>
+          <p>{referentiel.length} articles référencés — base de prix par article</p>
+        </div>
+        <select
+          value={natureFilter}
+          onChange={e => setNatureFilter(e.target.value)}
+          style={{ padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem', background: 'white', minWidth: 170 }}
+        >
+          <option value="">Toutes les natures</option>
+          {naturesList.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
       </div>
 
       <div className="card full-width">
@@ -90,14 +100,6 @@ export default function ArticlesPage({ articleStats }) {
               style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem' }}
             />
           </div>
-          <select
-            value={natureFilter}
-            onChange={e => setNatureFilter(e.target.value)}
-            style={{ padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem', background: 'white', minWidth: 170 }}
-          >
-            <option value="">Toutes les natures</option>
-            {naturesList.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
           <div style={{ position: 'relative', flex: '1 1 220px' }}>
             <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
