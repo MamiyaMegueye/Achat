@@ -66,6 +66,7 @@ export default function App() {
         articleCategorisation.forEach(a => { artCatByKey[`${a.numBC}-${a.codeArticle}`] = a; });
 
         if (articleCategorisation.length > 0) {
+          let matched = 0, unmatched = 0;
           articleStats.referentiel = articleStats.referentiel.map(a => {
             // Chercher la nature via la première entrée (BC) qui matche ; à défaut, garder l'article tel quel
             let found = null;
@@ -73,10 +74,18 @@ export default function App() {
               const f = artCatByKey[`${e.numBC}-${a.code}`];
               if (f) { found = f; break; }
             }
+            if (found) matched++; else unmatched++;
             return found
               ? { ...a, natureArticle: found.sousType, categorie: found.categorie, grandeCategorie: found.grandeCategorie }
               : a;
           });
+          console.log(`[DIAG Nature] ${matched} articles matchés, ${unmatched} non matchés sur ${articleStats.referentiel.length}`);
+          // Échantillon de clés pour comparaison manuelle
+          const sampleArtCatKeys = Object.keys(artCatByKey).slice(0, 5);
+          const sampleRefKeys = articleStats.referentiel.slice(0, 5).map(a => a.entries[0] ? `${a.entries[0].numBC}-${a.code}` : 'none');
+          console.log('[DIAG Nature] Exemples clés catégorisation:', sampleArtCatKeys);
+          console.log('[DIAG Nature] Exemples clés référentiel:', sampleRefKeys);
+          window.__NATURE_DIAG = { matched, unmatched, sampleArtCatKeys, sampleRefKeys, artCatByKey, referentiel: articleStats.referentiel };
         }
 
         // Détail ligne par ligne Structure × N° BC × Code Article × Catégorie × Nature (pour la page Structures)
