@@ -86,47 +86,6 @@ export default function StructuresPage({ structureStats, categorisation = [], st
         </ResponsiveContainer>
       </div>
 
-      <div className="card full-width">
-        <div className="card-title">Détail par structure</div>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Structure</th>
-              <th style={{ textAlign: 'right' }}>Nb BC</th>
-              <th style={{ textAlign: 'right' }}>Nb articles</th>
-              <th style={{ textAlign: 'right' }}>Montant total HT</th>
-              <th style={{ textAlign: 'right' }}>Part (%)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {structureStats.map((s, i) => {
-              const totalGlobal = structureStats.reduce((sum, x) => sum + x.montantTotal, 0);
-              const pct = totalGlobal > 0 ? Math.round(s.montantTotal / totalGlobal * 100) : 0;
-              return (
-                <tr key={i}>
-                  <td style={{ fontWeight: 600 }}>{s.structure}</td>
-                  <td className="amount">{s.nbBC}</td>
-                  <td className="amount">{s.nbArticles}</td>
-                  <td className="amount">{formatMontant(s.montantTotal)}</td>
-                  <td className="amount">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                      <div style={{
-                        width: 60, height: 6, background: 'var(--bg-main)', borderRadius: 3, overflow: 'hidden'
-                      }}>
-                        <div style={{
-                          width: `${pct}%`, height: '100%', background: 'var(--accent-primary)', borderRadius: 3
-                        }} />
-                      </div>
-                      <span>{pct}%</span>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
       {/* === (2) Répartition par Catégorie et Domaine d'achat === */}
       {categorisation.length > 0 && (
         <div className="card full-width">
