@@ -31,6 +31,28 @@ function buildMatches(t) {
   // Nombre de pôles (contacteurs, disjoncteurs) : "4 pôles", "2poles"
   m.poles = t.match(/(\d+)\s*p[oô]les?\b/);
 
+  // Diamètre en pouces : "2 pouces", "1.5 pouce"
+  m.pouces = t.match(/(\d+[.,]?\d*)\s*pouces?\b/);
+
+  // Canaux (vidéosurveillance DVR/XVR) ou puissance climatiseur : "8 channel", "1.5 CH"
+  m.channel = t.match(/(\d+[.,]?\d*)\s*(channel|ch)\b/);
+
+  // Taille de pneu : "750/16", "205 R16", "265/65 R17", "12/20", "245-70-16"
+  m.pneu = t.match(/pneus?\s+(?:avec\s+chambres?\s+à\s+air\s+)?(\d{2,3}(?:[\/\-]\d{1,3}){1,2}(?:\.\d)?(?:\s?r\s?\d{2,3})?|\d{2,3}\s?r\s?\d{2,3})/) ||
+           t.match(/\bchambre\s+à\s+air\s+(\d{2,3}\/\d{1,3})/);
+
+  // Viscosité huile moteur : "15W40", "10W30"
+  m.viscosite = t.match(/\b(\d{1,2}w\d{1,2})\b/);
+
+  // Taille écran / papier en pouces marqués par ' ou " : 25', 9.5"
+  m.ecranPouces = t.match(/(\d{1,2}[.,]?\d?)\s?['"]/);
+
+  // Dimensions L x l x H (regards, chambres) : "1.5/1.5/1.5", "1.5x1.5x1.5"
+  m.dimensions3 = t.match(/(\d+[.,]?\d*)\s?[\/x]\s?(\d+[.,]?\d*)\s?[\/x]\s?(\d+[.,]?\d*)/);
+
+  // Dimensions L x l en mètres (clôtures) : "15x20m"
+  m.dimensions2m = !m.dimensions3 ? t.match(/(\d+[.,]?\d*)\s?x\s?(\d+[.,]?\d*)\s?m\b/) : null;
+
   // Débit : m3/h, l/s, l/min
   m.debit = t.match(/(\d+[.,]?\d*)\s*m3\s?\/?\s?h/);
   m.debitLs = !m.debit ? t.match(/(\d+[.,]?\d*)\s*l\s?\/\s?s\b/) : null;
@@ -89,6 +111,13 @@ export function extractCaracteristiquesStructurees(texte) {
   if (m.diametre) result.diametre = parseInt(m.diametre[1], 10);
   if (m.pn) result.pn = parseInt(m.pn[1], 10);
   if (m.poles) result.poles = parseInt(m.poles[1], 10);
+  if (m.pouces) result.pouces = parseFloat(m.pouces[1].replace(',', '.'));
+  if (m.channel) result.channel = parseFloat(m.channel[1].replace(',', '.'));
+  if (m.pneu) result.pneu = m.pneu[1].trim();
+  if (m.viscosite) result.viscosite = m.viscosite[1].toUpperCase();
+  if (m.ecranPouces) result.ecranPouces = parseFloat(m.ecranPouces[1].replace(',', '.'));
+  if (m.dimensions3) result.dimensions = `${m.dimensions3[1]}x${m.dimensions3[2]}x${m.dimensions3[3]}`;
+  else if (m.dimensions2m) result.dimensions = `${m.dimensions2m[1]}x${m.dimensions2m[2]}`;
   if (m.debit) result.debit = parseFloat(m.debit[1].replace(',', '.'));
   else if (m.debitLs) result.debitLs = parseFloat(m.debitLs[1].replace(',', '.'));
   else if (m.debitLmin) result.debitLmin = parseFloat(m.debitLmin[1].replace(',', '.'));
@@ -132,6 +161,13 @@ export function extractCaracteristiques(texte) {
   if (m.diametre) resultats.push(`DN${m.diametre[1]}`);
   if (m.pn) resultats.push(`PN${m.pn[1]}`);
   if (m.poles) resultats.push(`${m.poles[1]} pôles`);
+  if (m.pouces) resultats.push(`${m.pouces[1].replace(',', '.')}"`);
+  if (m.channel) resultats.push(`${m.channel[1].replace(',', '.')} CH`);
+  if (m.pneu) resultats.push(`Pneu ${m.pneu[1].trim()}`);
+  if (m.viscosite) resultats.push(m.viscosite[1].toUpperCase());
+  if (m.ecranPouces) resultats.push(`${m.ecranPouces[1].replace(',', '.')}"`);
+  if (m.dimensions3) resultats.push(`${m.dimensions3[1]}×${m.dimensions3[2]}×${m.dimensions3[3]}m`);
+  else if (m.dimensions2m) resultats.push(`${m.dimensions2m[1]}×${m.dimensions2m[2]}m`);
   if (m.debit) resultats.push(`${m.debit[1].replace(',', '.')} m³/h`);
   else if (m.debitLs) resultats.push(`${m.debitLs[1].replace(',', '.')} l/s`);
   else if (m.debitLmin) resultats.push(`${m.debitLmin[1].replace(',', '.')} l/min`);
