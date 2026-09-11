@@ -37,7 +37,7 @@ export default function ArticlesPage({ articleStats }) {
       list = list.filter(a => matchesAnySearch(a.objets, searchObjet));
     }
     if (natureFilter) {
-      list = list.filter(a => a.natureArticle === natureFilter);
+      list = list.filter(a => (a.natureArticle || '').trim() === natureFilter.trim());
     }
     if (caracSearch.trim()) {
       list = list.filter(a => matchesAnySearch([a._caracText], caracSearch));
