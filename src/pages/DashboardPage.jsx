@@ -28,7 +28,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
 
   // Filtres par colonne
   const [colFilters, setColFilters] = useState({
-    fournisseur: '', article: '', objet: '',
+    fournisseur: '', article: '', nature: '', objet: '',
     dateAffichageMin: '', dateAffichageMax: '',
     datCdeMin: '', datCdeMax: '',
     delaiLivraisonMin: '', delaiLivraisonMax: '',
@@ -41,7 +41,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
   const setColFilter = (key, val) => setColFilters(f => ({ ...f, [key]: val }));
   const hasColFilters = Object.values(colFilters).some(v => v);
   const resetColFilters = () => setColFilters({
-    fournisseur: '', article: '', objet: '',
+    fournisseur: '', article: '', nature: '', objet: '',
     dateAffichageMin: '', dateAffichageMax: '',
     datCdeMin: '', datCdeMax: '',
     delaiLivraisonMin: '', delaiLivraisonMax: '',
@@ -155,6 +155,9 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     }
     if (colFilters.article) {
       rows = rows.filter(c => matchesAnySearch((c.articles || []).map(a => a.article || ''), colFilters.article));
+    }
+    if (colFilters.nature) {
+      rows = rows.filter(c => matchesAnySearch((c.articles || []).map(a => a.natureArticle || ''), colFilters.nature));
     }
     if (colFilters.objet) {
       rows = rows.filter(c => matchesAnySearch([c.obsCde || ''], colFilters.objet));
@@ -515,6 +518,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                 <th onClick={() => toggleSort('anCmd')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Année <SortIcon col="anCmd" /></th>
                 <th onClick={() => toggleSort('nomFrn')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Fournisseur <SortIcon col="nomFrn" /></th>
                 <th style={{ whiteSpace: 'nowrap' }}>Article</th>
+                <th style={{ whiteSpace: 'nowrap' }}>Nature d'article</th>
                 <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Prix unitaire</th>
                 <th style={{ whiteSpace: 'nowrap' }}>Objet</th>
                 <th onClick={() => toggleSort('dateAffichage')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Affichage <SortIcon col="dateAffichage" /></th>
@@ -534,6 +538,10 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                 </th>
                 <th>
                   <input type="text" value={colFilters.article} onChange={e => setColFilter('article', e.target.value)}
+                    placeholder="Filtrer..." style={colFilterInputStyle} />
+                </th>
+                <th>
+                  <input type="text" value={colFilters.nature} onChange={e => setColFilter('nature', e.target.value)}
                     placeholder="Filtrer..." style={colFilterInputStyle} />
                 </th>
                 <th>
@@ -611,6 +619,9 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                           {c.articles.length > 1 && <span style={{ color: 'var(--text-muted)' }}> (+{c.articles.length - 1})</span>}
                         </span>
                       ) : '—'}
+                    </td>
+                    <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      {c.articles && c.articles.length > 0 ? (c.articles[0].natureArticle || '—') : '—'}
                     </td>
                     <td className="amount" style={{ fontSize: '0.78rem' }}>
                       {c.articles && c.articles.length > 0 ? (

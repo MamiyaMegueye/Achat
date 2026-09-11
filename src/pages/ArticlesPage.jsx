@@ -25,7 +25,7 @@ export default function ArticlesPage({ articleStats }) {
   const filtered = useMemo(() => {
     let list = referentielAvecCarac;
     if (search.trim()) {
-      list = list.filter(a => matchesAnySearch([a.label, a.code], search));
+      list = list.filter(a => matchesAnySearch([a.label, a.code, a.natureArticle], search));
     }
     if (searchObjet.trim()) {
       list = list.filter(a => matchesAnySearch(a.objets, searchObjet));
@@ -61,7 +61,7 @@ export default function ArticlesPage({ articleStats }) {
             <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
-              placeholder="Rechercher par article..."
+              placeholder="Rechercher par article ou nature..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem' }}

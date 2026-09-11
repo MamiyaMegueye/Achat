@@ -141,7 +141,12 @@ export default function App() {
             // Repli : ignorer l'année si aucune correspondance exacte
             arts = bcByNum[num] || [];
           }
-          return { ...c, articles: arts };
+          // Enrichir chaque article avec sa Nature (si catégorisation détaillée importée)
+          const artsAvecNature = arts.map(a => {
+            const cat = artCatByKey[`${a.numBC}-${a.codeArticle}`];
+            return cat ? { ...a, natureArticle: cat.sousType } : a;
+          });
+          return { ...c, articles: artsAvecNature };
         });
 
         setStats({
