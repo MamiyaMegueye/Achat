@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'snde-achats';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 async function getDB() {
   return openDB(DB_NAME, DB_VERSION, {
@@ -26,9 +26,10 @@ async function getDB() {
       if (!db.objectStoreNames.contains('categorisation')) {
         db.createObjectStore('categorisation', { keyPath: '_id', autoIncrement: true });
       }
-      if (!db.objectStoreNames.contains('article_categorisation')) {
-        db.createObjectStore('article_categorisation', { keyPath: 'codeArticle' });
+      if (db.objectStoreNames.contains('article_categorisation')) {
+        db.deleteObjectStore('article_categorisation'); // keyPath changé : codeArticle seul → composite BC+code
       }
+      db.createObjectStore('article_categorisation', { keyPath: 'key' });
     }
   });
 }
@@ -149,7 +150,7 @@ export async function getAllCategorisation() {
 }
 
 // --- Catégorisation détaillée par article (Fichier 4, optionnel) ---
-// codeArticle -> { categorie, sousType, grandeCategorie }
+// clé composite (numBC + codeArticle) -> { categorie, sousType, grandeCategorie }
 
 export async function importArticleCategorisation(rows) {
   const db = await getDB();
@@ -157,7 +158,8 @@ export async function importArticleCategorisation(rows) {
   const store = tx.objectStore('article_categorisation');
   let added = 0;
   for (const row of rows) {
-    if (!row.codeArticle) continue;
+    if (!row.codeArticle || !row.numBC) continue;
+    row.key = `${row.numBC}-${row.codeArticle}`;
     await store.put(row);
     added++;
   }

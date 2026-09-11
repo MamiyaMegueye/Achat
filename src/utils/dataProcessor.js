@@ -284,13 +284,17 @@ export function parseArticleCategorisation(workbook) {
     const codeArticle = codeRaw != null
       ? (typeof codeRaw === 'number' ? String(Math.trunc(codeRaw)) : String(codeRaw).trim())
       : null;
+    const numBC = Number(get('N° BC', 'N°BC', 'NUM_BC')) || null;
     return {
+      numBC,
       codeArticle,
+      structure: String(get('Structure') || '').trim(),
+      annee: get('Annee', 'Année') != null ? Number(get('Annee', 'Année')) : null,
       grandeCategorie: String(get('grande_categorie', 'Grande categorie', 'Grande catégorie') || '').trim(),
       categorie: String(get('categorie', 'Categorie', 'Catégorie') || '').trim(),
       sousType: String(get('sous_type', 'Sous-type', 'Sous type') || '').trim(),
     };
-  }).filter(r => r.codeArticle);
+  }).filter(r => r.codeArticle && r.numBC);
 }
 
 export function readExcelFile(file) {

@@ -61,17 +61,45 @@ export default function App() {
         const supplierStats = computeSupplierStats(cmds);
         const articleStats = computeArticleStats(bcs);
 
-        // Enrichir le référentiel prix avec la Nature d'article (si catégorisation détaillée importée)
+        // Enrichir le référentiel prix avec la Nature d'article — jointure par (N° BC + Code Article)
+        const artCatByKey = {};
+        articleCategorisation.forEach(a => { artCatByKey[`${a.numBC}-${a.codeArticle}`] = a; });
+
         if (articleCategorisation.length > 0) {
-          const artCatByCode = {};
-          articleCategorisation.forEach(a => { artCatByCode[a.codeArticle] = a; });
           articleStats.referentiel = articleStats.referentiel.map(a => {
-            const found = artCatByCode[a.code];
+            // Chercher la nature via la première entrée (BC) qui matche ; à défaut, garder l'article tel quel
+            let found = null;
+            for (const e of a.entries) {
+              const f = artCatByKey[`${e.numBC}-${a.code}`];
+              if (f) { found = f; break; }
+            }
             return found
               ? { ...a, natureArticle: found.sousType, categorie: found.categorie, grandeCategorie: found.grandeCategorie }
               : a;
           });
         }
+
+        // Détail ligne par ligne Structure × N° BC × Code Article × Catégorie × Nature (pour la page Structures)
+        const structureArticleDetail = articleCategorisation.length > 0
+          ? bcs
+              .map(bc => {
+                const cat = artCatByKey[`${bc.numBC}-${bc.codeArticle}`];
+                if (!cat) return null;
+                return {
+                  structure: bc.structure,
+                  numBC: bc.numBC,
+                  codeArticle: bc.codeArticle,
+                  article: bc.article,
+                  grandeCategorie: cat.grandeCategorie,
+                  categorie: cat.categorie,
+                  natureArticle: cat.sousType,
+                  montantHT: bc.totalHT || 0,
+                  fournisseur: bc.fournisseur,
+                };
+              })
+              .filter(Boolean)
+          : [];
+
         const paymentAlerts = computePaymentAlerts(cmds);
         const structureStats = computeStructureStats(bcs);
         const missingDocs = computeMissingDocs(cmds);
@@ -110,7 +138,7 @@ export default function App() {
         setStats({
           kpis, delays, supplierStats, articleStats,
           paymentAlerts, structureStats, missingDocs, cmds: cmdsEnrichies, seasonality, dependencyStats,
-          categorisation,
+          categorisation, structureArticleDetail,
         });
 
         if (activePage === 'import' && counts.bcCount > 0 && counts.cmdCount > 0) {
@@ -171,7 +199,7 @@ export default function App() {
       case 'engagements':
         return <EngagementsPage cmds={stats.cmds} />;
       case 'structures':
-        return <StructuresPage structureStats={stats.structureStats} categorisation={stats.categorisation} />;
+        return <StructuresPage structureStats={stats.structureStats} categorisation={stats.categorisation} structureArticleDetail={stats.structureArticleDetail} />;
       case 'anomalies':
         return <AnomaliesPage missingDocs={stats.missingDocs} cmds={stats.cmds} />;
       default:
