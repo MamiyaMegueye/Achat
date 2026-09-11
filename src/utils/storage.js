@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'snde-achats';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 async function getDB() {
   return openDB(DB_NAME, DB_VERSION, {
