@@ -7,6 +7,15 @@ import { matchesAnySearch } from '../utils/search';
 
 export default function DashboardPage({ kpis, delays, supplierStats, paymentAlerts, cmds = [], seasonality = [] }) {
 
+  const colFilterInputStyle = {
+    width: '100%', padding: '4px 6px', fontSize: '0.72rem', fontWeight: 400,
+    border: '1px solid var(--border-light)', borderRadius: 4, background: 'white',
+  };
+  const colFilterDateStyle = {
+    width: '100%', padding: '2px 4px', fontSize: '0.65rem', fontWeight: 400,
+    border: '1px solid var(--border-light)', borderRadius: 4, background: 'white',
+  };
+
   const [selectedPipeline, setSelectedPipeline] = useState(null);
   const [showAnnulees, setShowAnnulees] = useState(null); // null, 'annulees', 'sansMontant'
 
@@ -15,6 +24,37 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
   const [statutFilter, setStatutFilter] = useState('');
   const [sortKey, setSortKey] = useState('datCde');
   const [sortDir, setSortDir] = useState('desc');
+
+  // Filtres par colonne
+  const [colFilters, setColFilters] = useState({
+    fournisseur: '', article: '', objet: '',
+    dateAffichageMin: '', dateAffichageMax: '',
+    datCdeMin: '', datCdeMax: '',
+    delaiLivraisonMin: '', delaiLivraisonMax: '',
+    datRecMin: '', datRecMax: '',
+    factDateFrMin: '', factDateFrMax: '',
+    paiementDateMin: '', paiementDateMax: '',
+  });
+  const setColFilter = (key, val) => setColFilters(f => ({ ...f, [key]: val }));
+  const hasColFilters = Object.values(colFilters).some(v => v);
+  const resetColFilters = () => setColFilters({
+    fournisseur: '', article: '', objet: '',
+    dateAffichageMin: '', dateAffichageMax: '',
+    datCdeMin: '', datCdeMax: '',
+    delaiLivraisonMin: '', delaiLivraisonMax: '',
+    datRecMin: '', datRecMax: '',
+    factDateFrMin: '', factDateFrMax: '',
+    paiementDateMin: '', paiementDateMax: '',
+  });
+
+  const inDateRange = (val, min, max) => {
+    if (!min && !max) return true;
+    if (!val) return false;
+    const d = new Date(val).getTime();
+    if (min && d < new Date(min).getTime()) return false;
+    if (max && d > new Date(max).getTime()) return false;
+    return true;
+  };
 
   const statusData = [
     { name: 'Payées', value: kpis.payees, color: '#3d8b6e', bg: '#e4f2ec' },
@@ -101,6 +141,22 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
       rows = rows.filter(c => c.statut === statutFilter);
     }
 
+    if (colFilters.fournisseur) {
+      rows = rows.filter(c => matchesAnySearch([c.nomFrn || ''], colFilters.fournisseur));
+    }
+    if (colFilters.article) {
+      rows = rows.filter(c => matchesAnySearch((c.articles || []).map(a => a.article || ''), colFilters.article));
+    }
+    if (colFilters.objet) {
+      rows = rows.filter(c => matchesAnySearch([c.obsCde || ''], colFilters.objet));
+    }
+    rows = rows.filter(c => inDateRange(c.dateAffichage, colFilters.dateAffichageMin, colFilters.dateAffichageMax));
+    rows = rows.filter(c => inDateRange(c.datCde, colFilters.datCdeMin, colFilters.datCdeMax));
+    rows = rows.filter(c => inDateRange(c.delaiLivraison, colFilters.delaiLivraisonMin, colFilters.delaiLivraisonMax));
+    rows = rows.filter(c => inDateRange(c.datRec, colFilters.datRecMin, colFilters.datRecMax));
+    rows = rows.filter(c => inDateRange(c.factDateFr, colFilters.factDateFrMin, colFilters.factDateFrMax));
+    rows = rows.filter(c => inDateRange(c.paiementDate, colFilters.paiementDateMin, colFilters.paiementDateMax));
+
     rows.sort((a, b) => {
       let va = a[sortKey], vb = b[sortKey];
       if (sortKey === 'datCde') {
@@ -118,7 +174,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     });
 
     return rows;
-  }, [cmds, search, statutFilter, sortKey, sortDir]);
+  }, [cmds, search, statutFilter, sortKey, sortDir, colFilters]);
 
   const toggleSort = (key) => {
     if (sortKey === key) {
@@ -367,9 +423,11 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
 
       {/* === Tableau de suivi des commandes === */}
       <div className="card full-width">
-        <div className="card-title">Suivi des commandes <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— {filteredCmds.length} résultat(s)</span></div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div className="card-title" style={{ marginBottom: 0 }}>Suivi des commandes <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— {filteredCmds.length} résultat(s)</span></div>
+        </div>
 
-        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, marginTop: 12, flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', flex: '1 1 260px' }}>
             <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
@@ -397,42 +455,102 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
             <option value="Réceptionnée">Réceptionnée</option>
             <option value="Non réceptionnée">Non réceptionnée</option>
           </select>
-          {(search || statutFilter) && (
+          {(search || statutFilter || hasColFilters) && (
             <button
-              onClick={() => { setSearch(''); setStatutFilter(''); }}
+              onClick={() => { setSearch(''); setStatutFilter(''); resetColFilters(); }}
               style={{
                 padding: '8px 12px', border: '1px solid var(--border-light)',
-                borderRadius: 6, fontSize: '0.78rem', background: '#f5f0e8',
+                borderRadius: 6, fontSize: '0.78rem', background: 'var(--bg-main)',
                 cursor: 'pointer', color: 'var(--text-secondary)',
               }}
             >
-              Réinitialiser
+              Réinitialiser tout
             </button>
           )}
         </div>
 
-        <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-          <table className="data-table">
+        <div style={{ maxHeight: 560, overflow: 'auto' }}>
+          <table className="data-table" style={{ minWidth: 1500 }}>
             <thead>
               <tr>
-                <th onClick={() => toggleSort('numCmd')} style={{ cursor: 'pointer' }}>N° CMD <SortIcon col="numCmd" /></th>
-                <th onClick={() => toggleSort('nomFrn')} style={{ cursor: 'pointer' }}>Fournisseur <SortIcon col="nomFrn" /></th>
-                <th>Article</th>
-                <th style={{ textAlign: 'right' }}>Prix unitaire</th>
-                <th>Objet</th>
-                <th onClick={() => toggleSort('datCde')} style={{ cursor: 'pointer' }}>Date Cde <SortIcon col="datCde" /></th>
-                <th onClick={() => toggleSort('montTTC')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant TTC <SortIcon col="montTTC" /></th>
-                <th onClick={() => toggleSort('statut')} style={{ cursor: 'pointer' }}>Statut <SortIcon col="statut" /></th>
+                <th onClick={() => toggleSort('numCmd')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>N° CMD <SortIcon col="numCmd" /></th>
+                <th onClick={() => toggleSort('nomFrn')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Fournisseur <SortIcon col="nomFrn" /></th>
+                <th style={{ whiteSpace: 'nowrap' }}>Article</th>
+                <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Prix unitaire</th>
+                <th style={{ whiteSpace: 'nowrap' }}>Objet</th>
+                <th onClick={() => toggleSort('dateAffichage')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Affichage <SortIcon col="dateAffichage" /></th>
+                <th onClick={() => toggleSort('datCde')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Cde <SortIcon col="datCde" /></th>
+                <th onClick={() => toggleSort('delaiLivraison')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Délai Livr. Prévu <SortIcon col="delaiLivraison" /></th>
+                <th onClick={() => toggleSort('datRec')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Réception <SortIcon col="datRec" /></th>
+                <th onClick={() => toggleSort('factDateFr')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Facture <SortIcon col="factDateFr" /></th>
+                <th onClick={() => toggleSort('paiementDate')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Paiement <SortIcon col="paiementDate" /></th>
+                <th onClick={() => toggleSort('montTTC')} style={{ textAlign: 'right', cursor: 'pointer', whiteSpace: 'nowrap' }}>Montant TTC <SortIcon col="montTTC" /></th>
+                <th onClick={() => toggleSort('statut')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Statut <SortIcon col="statut" /></th>
+              </tr>
+              <tr>
+                <th></th>
+                <th>
+                  <input type="text" value={colFilters.fournisseur} onChange={e => setColFilter('fournisseur', e.target.value)}
+                    placeholder="Filtrer..." style={colFilterInputStyle} />
+                </th>
+                <th>
+                  <input type="text" value={colFilters.article} onChange={e => setColFilter('article', e.target.value)}
+                    placeholder="Filtrer..." style={colFilterInputStyle} />
+                </th>
+                <th></th>
+                <th>
+                  <input type="text" value={colFilters.objet} onChange={e => setColFilter('objet', e.target.value)}
+                    placeholder="Filtrer..." style={colFilterInputStyle} />
+                </th>
+                <th>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <input type="date" value={colFilters.dateAffichageMin} onChange={e => setColFilter('dateAffichageMin', e.target.value)} style={colFilterDateStyle} />
+                    <input type="date" value={colFilters.dateAffichageMax} onChange={e => setColFilter('dateAffichageMax', e.target.value)} style={colFilterDateStyle} />
+                  </div>
+                </th>
+                <th>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <input type="date" value={colFilters.datCdeMin} onChange={e => setColFilter('datCdeMin', e.target.value)} style={colFilterDateStyle} />
+                    <input type="date" value={colFilters.datCdeMax} onChange={e => setColFilter('datCdeMax', e.target.value)} style={colFilterDateStyle} />
+                  </div>
+                </th>
+                <th>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <input type="date" value={colFilters.delaiLivraisonMin} onChange={e => setColFilter('delaiLivraisonMin', e.target.value)} style={colFilterDateStyle} />
+                    <input type="date" value={colFilters.delaiLivraisonMax} onChange={e => setColFilter('delaiLivraisonMax', e.target.value)} style={colFilterDateStyle} />
+                  </div>
+                </th>
+                <th>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <input type="date" value={colFilters.datRecMin} onChange={e => setColFilter('datRecMin', e.target.value)} style={colFilterDateStyle} />
+                    <input type="date" value={colFilters.datRecMax} onChange={e => setColFilter('datRecMax', e.target.value)} style={colFilterDateStyle} />
+                  </div>
+                </th>
+                <th>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <input type="date" value={colFilters.factDateFrMin} onChange={e => setColFilter('factDateFrMin', e.target.value)} style={colFilterDateStyle} />
+                    <input type="date" value={colFilters.factDateFrMax} onChange={e => setColFilter('factDateFrMax', e.target.value)} style={colFilterDateStyle} />
+                  </div>
+                </th>
+                <th>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <input type="date" value={colFilters.paiementDateMin} onChange={e => setColFilter('paiementDateMin', e.target.value)} style={colFilterDateStyle} />
+                    <input type="date" value={colFilters.paiementDateMax} onChange={e => setColFilter('paiementDateMax', e.target.value)} style={colFilterDateStyle} />
+                  </div>
+                </th>
+                <th></th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {filteredCmds.slice(0, 200).map((c, i) => {
                 const sc = statutColors[c.statut] || { color: 'var(--text-secondary)', bg: 'var(--border-light)' };
+                const fmtD = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
                 return (
                   <tr key={i}>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{c.numCmd}</td>
-                    <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nomFrn || '—'}</td>
-                    <td style={{ maxWidth: 220, fontSize: '0.78rem' }} title={(c.articles || []).map(a => a.article).join(', ')}>
+                    <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nomFrn || '—'}</td>
+                    <td style={{ maxWidth: 200, fontSize: '0.78rem' }} title={(c.articles || []).map(a => a.article).join(', ')}>
                       {c.articles && c.articles.length > 0 ? (
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
                           {c.articles[0].article}
@@ -447,13 +565,18 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                           : `${formatMontant(Math.min(...c.articles.map(a => a.pu || 0)))} – ${formatMontant(Math.max(...c.articles.map(a => a.pu || 0)))}`
                       ) : '—'}
                     </td>
-                    <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{c.obsCde || '—'}</td>
-                    <td style={{ fontSize: '0.78rem' }}>{c.datCde ? new Date(c.datCde).toLocaleDateString('fr-FR') : '—'}</td>
+                    <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{c.obsCde || '—'}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.dateAffichage)}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.datCde)}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.delaiLivraison)}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.datRec)}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.factDateFr)}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.paiementDate)}</td>
                     <td className="amount">{formatMontant(c.montTTC || c.montHT || 0)}</td>
                     <td>
                       <span style={{
                         display: 'inline-block', padding: '2px 8px', borderRadius: 10,
-                        fontSize: '0.7rem', fontWeight: 600, color: sc.color, background: sc.bg,
+                        fontSize: '0.7rem', fontWeight: 600, color: sc.color, background: sc.bg, whiteSpace: 'nowrap',
                       }}>
                         {c.statut}
                       </span>
