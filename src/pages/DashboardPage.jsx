@@ -35,6 +35,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     factDateFrMin: '', factDateFrMax: '',
     paiementDateMin: '', paiementDateMax: '',
     montantMin: '', montantMax: '',
+    puMin: '', puMax: '',
   });
   const setColFilter = (key, val) => setColFilters(f => ({ ...f, [key]: val }));
   const hasColFilters = Object.values(colFilters).some(v => v);
@@ -47,6 +48,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     factDateFrMin: '', factDateFrMax: '',
     paiementDateMin: '', paiementDateMax: '',
     montantMin: '', montantMax: '',
+    puMin: '', puMax: '',
   });
 
   const inDateRange = (val, min, max) => {
@@ -164,6 +166,12 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     }
     if (colFilters.montantMax !== '') {
       rows = rows.filter(c => (c.montTTC || c.montHT || 0) <= Number(colFilters.montantMax));
+    }
+    if (colFilters.puMin !== '') {
+      rows = rows.filter(c => (c.articles || []).some(a => (a.pu || 0) >= Number(colFilters.puMin)));
+    }
+    if (colFilters.puMax !== '') {
+      rows = rows.filter(c => (c.articles || []).some(a => (a.pu || 0) <= Number(colFilters.puMax)));
     }
 
     rows.sort((a, b) => {
@@ -506,7 +514,14 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                   <input type="text" value={colFilters.article} onChange={e => setColFilter('article', e.target.value)}
                     placeholder="Filtrer..." style={colFilterInputStyle} />
                 </th>
-                <th></th>
+                <th>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <input type="number" value={colFilters.puMin} onChange={e => setColFilter('puMin', e.target.value)}
+                      placeholder="min" style={colFilterInputStyle} />
+                    <input type="number" value={colFilters.puMax} onChange={e => setColFilter('puMax', e.target.value)}
+                      placeholder="max" style={colFilterInputStyle} />
+                  </div>
+                </th>
                 <th>
                   <input type="text" value={colFilters.objet} onChange={e => setColFilter('objet', e.target.value)}
                     placeholder="Filtrer..." style={colFilterInputStyle} />
