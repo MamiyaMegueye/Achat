@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Trash2, Database, ArrowRight } from 'lucide-react';
-import { readExcelFile, parseBonsCommande, parseSuiviCmd, parseStructureCategorisation, parseArticleCategorisation } from '../utils/dataProcessor';
+import { readExcelFile, parseBonsCommande, parseSuiviCmd, parseStructureCategorisation, parseArticleCategorisation, hasSourceSheet } from '../utils/dataProcessor';
 import { importBonsCommande, importSuiviCmd, importCategorisation, importArticleCategorisation, clearAllData, getDataCounts } from '../utils/storage';
 
 export default function FileUpload({ onDataImported, dataCounts }) {
@@ -51,9 +51,18 @@ export default function FileUpload({ onDataImported, dataCounts }) {
       } else if (type === 'cat') {
         const rows = parseStructureCategorisation(wb);
         const result = await importCategorisation(rows);
+
+        // Le classeur peut contenir une feuille "Source" avec le détail par article
+        let sourceMsg = '';
+        if (hasSourceSheet(wb)) {
+          const articleRows = parseArticleCategorisation(wb);
+          const articleResult = await importArticleCategorisation(articleRows);
+          sourceMsg = ` · ${articleResult.added} articles détaillés (feuille Source)`;
+        }
+
         setter({
           status: 'success',
-          message: `${result.added} lignes de catégorisation importées`,
+          message: `${result.added} lignes de catégorisation importées${sourceMsg}`,
           count: rows.length,
         });
       } else {
@@ -244,7 +253,7 @@ export default function FileUpload({ onDataImported, dataCounts }) {
         <UploadBox
           step="3"
           label="Catégorisation (optionnel)"
-          detail="Structure × Catégorie × Nature"
+          detail="Structure × Catégorie × Nature (+ détail par article si feuille Source)"
           description="stats_structure_sous_type"
           inputRef={catRef}
           onFile={f => handleFile(f, 'cat')}

@@ -273,7 +273,7 @@ export function parseStructureCategorisation(workbook) {
 // CODE ARTICLE | ARTICLE | OBJET | ... | grande_categorie | categorie | sous_type
 
 export function parseArticleCategorisation(workbook) {
-  const sheetName = workbook.SheetNames[0];
+  const sheetName = workbook.SheetNames.includes('Source') ? 'Source' : workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
   const colNames = rows.length > 0 ? Object.keys(rows[0]) : [];
@@ -295,6 +295,11 @@ export function parseArticleCategorisation(workbook) {
       sousType: String(get('sous_type', 'Sous-type', 'Sous type') || '').trim(),
     };
   }).filter(r => r.codeArticle && r.numBC);
+}
+
+// Vérifie si un classeur contient une feuille "Source" exploitable (détail par article)
+export function hasSourceSheet(workbook) {
+  return workbook.SheetNames.includes('Source');
 }
 
 export function readExcelFile(file) {
