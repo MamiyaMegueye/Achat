@@ -23,6 +23,9 @@ async function getDB() {
       if (!db.objectStoreNames.contains('import_log')) {
         db.createObjectStore('import_log', { keyPath: 'id', autoIncrement: true });
       }
+      if (!db.objectStoreNames.contains('categorisation')) {
+        db.createObjectStore('categorisation', { keyPath: '_id', autoIncrement: true });
+      }
     }
   });
 }
@@ -124,6 +127,24 @@ export async function getAllSuiviCmd() {
   return db.getAll('suivi_cmd');
 }
 
+// --- Catégorisation Structure × Catégorie × Sous-type (Fichier 3, optionnel) ---
+
+export async function importCategorisation(rows) {
+  const db = await getDB();
+  const tx = db.transaction('categorisation', 'readwrite');
+  await tx.objectStore('categorisation').clear(); // remplace entièrement à chaque import
+  for (const row of rows) {
+    await tx.objectStore('categorisation').add(row);
+  }
+  await tx.done;
+  return { added: rows.length };
+}
+
+export async function getAllCategorisation() {
+  const db = await getDB();
+  return db.getAll('categorisation');
+}
+
 // --- Utils ---
 
 export async function getImportLog() {
@@ -142,11 +163,15 @@ export async function clearAllData() {
   const tx3 = db.transaction('import_log', 'readwrite');
   await tx3.objectStore('import_log').clear();
   await tx3.done;
+  const tx4 = db.transaction('categorisation', 'readwrite');
+  await tx4.objectStore('categorisation').clear();
+  await tx4.done;
 }
 
 export async function getDataCounts() {
   const db = await getDB();
   const bcCount = await db.count('bons_commande');
   const cmdCount = await db.count('suivi_cmd');
-  return { bcCount, cmdCount };
+  const categorisationCount = await db.count('categorisation');
+  return { bcCount, cmdCount, categorisationCount };
 }
