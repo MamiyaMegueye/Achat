@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { Clock, AlertTriangle, CheckCircle2, Search } from 'lucide-react';
 import { formatMontant } from '../utils/stats';
+import { matchesAnySearch } from '../utils/search';
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -95,8 +96,7 @@ function useTableFilter(rows, { searchFields = [], joursField = 'jours' } = {}) 
   const filtered = useMemo(() => {
     let r = rows;
     if (search.trim()) {
-      const s = search.trim().toLowerCase();
-      r = r.filter(row => searchFields.some(f => String(row[f] || '').toLowerCase().includes(s)));
+      r = r.filter(row => matchesAnySearch(searchFields.map(f => String(row[f] || '')), search));
     }
     if (statut) {
       r = r.filter(row => row.statut === statut);

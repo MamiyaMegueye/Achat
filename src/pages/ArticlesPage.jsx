@@ -3,6 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from 'recharts';
 import { formatMontant } from '../utils/stats';
+import { matchesAnySearch } from '../utils/search';
 import { Search, X } from 'lucide-react';
 
 export default function ArticlesPage({ articleStats }) {
@@ -12,11 +13,8 @@ export default function ArticlesPage({ articleStats }) {
 
   const filtered = useMemo(() => {
     if (!search.trim()) return referentiel;
-    const s = search.trim().toLowerCase();
     return referentiel.filter(a =>
-      (a.label || '').toLowerCase().includes(s) ||
-      (a.code || '').toLowerCase().includes(s) ||
-      a.objets.some(o => o.toLowerCase().includes(s))
+      matchesAnySearch([a.label, a.code, ...a.objets], search)
     );
   }, [referentiel, search]);
 
@@ -107,9 +105,12 @@ export default function ArticlesPage({ articleStats }) {
                   <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>{formatMontant(selected.puActuel)}</div>
                 </div>
                 <div style={{ flex: 1, minWidth: 100, padding: '8px 10px', background: 'var(--bg-main)', borderRadius: 6 }}>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Écart min-max</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Variation de prix</div>
                   <div style={{ fontSize: '0.95rem', fontWeight: 700, color: variationPct > 20 ? 'var(--danger)' : 'var(--text-primary)' }}>
                     {variationPct}%
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                    +{formatMontant(selected.puMax - selected.puMin)} MRU
                   </div>
                 </div>
                 <div style={{ flex: 1, minWidth: 100, padding: '8px 10px', background: 'var(--bg-main)', borderRadius: 6 }}>

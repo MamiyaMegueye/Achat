@@ -3,6 +3,7 @@ import {
   ShoppingCart, CreditCard, PackageCheck, AlertTriangle, Ban, X, Search, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { formatMontant } from '../utils/stats';
+import { matchesAnySearch } from '../utils/search';
 
 export default function DashboardPage({ kpis, delays, supplierStats, paymentAlerts, cmds = [], seasonality = [] }) {
 
@@ -86,12 +87,13 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     let rows = cmds.map(c => ({ ...c, statut: getStatut(c) }));
 
     if (search.trim()) {
-      const s = search.trim().toLowerCase();
       rows = rows.filter(c =>
-        String(c.numCmd || '').toLowerCase().includes(s) ||
-        (c.nomFrn || '').toLowerCase().includes(s) ||
-        (c.obsCde || '').toLowerCase().includes(s) ||
-        (c.articles || []).some(a => (a.article || '').toLowerCase().includes(s))
+        matchesAnySearch([
+          String(c.numCmd || ''),
+          c.nomFrn || '',
+          c.obsCde || '',
+          ...(c.articles || []).map(a => a.article || ''),
+        ], search)
       );
     }
 

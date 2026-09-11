@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { formatMontant } from '../utils/stats';
+import { matchesSearch } from '../utils/search';
 import { Clock, TrendingUp, AlertTriangle, PieChart, Users, Search } from 'lucide-react';
 
 export default function SuppliersPage({ supplierStats }) {
@@ -24,8 +25,7 @@ export default function SuppliersPage({ supplierStats }) {
   const sorted = useMemo(() => {
     let list = [...supplierStats];
     if (search.trim()) {
-      const s = search.trim().toLowerCase();
-      list = list.filter(f => f.nom.toLowerCase().includes(s));
+      list = list.filter(f => matchesSearch(f.nom, search));
     }
     list.sort((a, b) => {
       let va, vb;
