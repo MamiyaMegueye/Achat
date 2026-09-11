@@ -4,6 +4,7 @@ import {
 } from 'recharts';
 import { formatMontant } from '../utils/stats';
 import { matchesAnySearch } from '../utils/search';
+import { formatCaracteristiques } from '../utils/characteristics';
 import { Search, X } from 'lucide-react';
 
 export default function ArticlesPage({ articleStats }) {
@@ -11,17 +12,29 @@ export default function ArticlesPage({ articleStats }) {
   const [search, setSearch] = useState('');
   const [searchObjet, setSearchObjet] = useState('');
   const [selected, setSelected] = useState(null);
+  const [caracSearch, setCaracSearch] = useState('');
+
+  // Précalculer les caractéristiques (texte formaté) une fois par article
+  const referentielAvecCarac = useMemo(() => {
+    return referentiel.map(a => ({
+      ...a,
+      _caracText: formatCaracteristiques(`${a.label} ${(a.objets || []).join(' ')}`),
+    }));
+  }, [referentiel]);
 
   const filtered = useMemo(() => {
-    let list = referentiel;
+    let list = referentielAvecCarac;
     if (search.trim()) {
       list = list.filter(a => matchesAnySearch([a.label, a.code], search));
     }
     if (searchObjet.trim()) {
       list = list.filter(a => matchesAnySearch(a.objets, searchObjet));
     }
+    if (caracSearch.trim()) {
+      list = list.filter(a => matchesAnySearch([a._caracText], caracSearch));
+    }
     return list;
-  }, [referentiel, search, searchObjet]);
+  }, [referentielAvecCarac, search, searchObjet, caracSearch]);
 
   const chartData = selected
     ? selected.entries.map(e => ({
@@ -66,6 +79,17 @@ export default function ArticlesPage({ articleStats }) {
           </div>
         </div>
 
+        <div style={{ position: 'relative', marginBottom: 14 }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <input
+            type="text"
+            placeholder="Filtrer par caractéristique (ex: 55 KW, DN200, 16 GO)..."
+            value={caracSearch}
+            onChange={e => setCaracSearch(e.target.value)}
+            style={{ width: '100%', maxWidth: 420, padding: '8px 12px 8px 32px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem' }}
+          />
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: selected ? '1.3fr 1fr' : '1fr', gap: 16 }}>
           <div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 8 }}>{filtered.length} résultat(s)</div>
@@ -75,6 +99,7 @@ export default function ArticlesPage({ articleStats }) {
                   <tr>
                     <th>Article</th>
                     <th>Nature d'article</th>
+                    <th>Caractéristiques</th>
                     <th style={{ textAlign: 'right' }}>PU actuel</th>
                     <th style={{ textAlign: 'right' }}>PU min - max</th>
                     <th style={{ textAlign: 'right' }}>Nb cmd</th>
@@ -89,6 +114,9 @@ export default function ArticlesPage({ articleStats }) {
                     >
                       <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label || a.code}</td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{a.natureArticle || '—'}</td>
+                      <td style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        {a._caracText || '—'}
+                      </td>
                       <td className="amount">{formatMontant(a.puActuel)}</td>
                       <td className="amount" style={{ fontSize: '0.78rem' }}>
                         {a.puMin === a.puMax ? formatMontant(a.puMin) : `${formatMontant(a.puMin)} – ${formatMontant(a.puMax)}`}
@@ -116,6 +144,11 @@ export default function ArticlesPage({ articleStats }) {
                   <div className="card-title" style={{ marginBottom: 0 }}>{selected.label || selected.code}</div>
                   {selected.natureArticle && (
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{selected.natureArticle}</div>
+                  )}
+                  {selected._caracText && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--accent-primary)', fontWeight: 500, marginTop: 2 }}>
+                      {selected._caracText}
+                    </div>
                   )}
                 </div>
                 <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
