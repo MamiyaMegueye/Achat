@@ -1,17 +1,19 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Trash2, Database, ArrowRight } from 'lucide-react';
-import { readExcelFile, parseBonsCommande, parseSuiviCmd } from '../utils/dataProcessor';
-import { importBonsCommande, importSuiviCmd, clearAllData, getDataCounts } from '../utils/storage';
+import { readExcelFile, parseBonsCommande, parseSuiviCmd, parseStructureCategorisation } from '../utils/dataProcessor';
+import { importBonsCommande, importSuiviCmd, importCategorisation, clearAllData, getDataCounts } from '../utils/storage';
 
 export default function FileUpload({ onDataImported, dataCounts }) {
   const [bcStatus, setBcStatus] = useState(null);
   const [cmdStatus, setCmdStatus] = useState(null);
+  const [catStatus, setCatStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const bcRef = useRef();
   const cmdRef = useRef();
+  const catRef = useRef();
 
   const handleFile = async (file, type) => {
-    const setter = type === 'bc' ? setBcStatus : setCmdStatus;
+    const setter = type === 'bc' ? setBcStatus : type === 'cmd' ? setCmdStatus : setCatStatus;
     setter({ status: 'loading', message: 'Lecture du fichier...' });
     setLoading(true);
 
@@ -26,7 +28,7 @@ export default function FileUpload({ onDataImported, dataCounts }) {
           message: `${result.added} articles ajoutés, ${result.skipped} existants`,
           count: rows.length,
         });
-      } else {
+      } else if (type === 'cmd') {
         const rows = parseSuiviCmd(wb);
         const withDatCde = rows.filter(r => r.datCde instanceof Date).length;
         const withDatRec = rows.filter(r => r.datRec instanceof Date).length;
@@ -44,6 +46,14 @@ export default function FileUpload({ onDataImported, dataCounts }) {
           count: rows.length,
           diag,
         });
+      } else {
+        const rows = parseStructureCategorisation(wb);
+        const result = await importCategorisation(rows);
+        setter({
+          status: 'success',
+          message: `${result.added} lignes de catégorisation importées`,
+          count: rows.length,
+        });
       }
 
       onDataImported();
@@ -59,6 +69,7 @@ export default function FileUpload({ onDataImported, dataCounts }) {
       await clearAllData();
       setBcStatus(null);
       setCmdStatus(null);
+      setCatStatus(null);
       onDataImported();
     }
   };
@@ -178,6 +189,7 @@ export default function FileUpload({ onDataImported, dataCounts }) {
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--text-primary)' }}>
                 {dataCounts.bcCount} articles · {dataCounts.cmdCount} commandes
+                {dataCounts.categorisationCount > 0 && ` · ${dataCounts.categorisationCount} lignes de catégorisation`}
               </div>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>Données actuellement en base</div>
             </div>
@@ -189,7 +201,7 @@ export default function FileUpload({ onDataImported, dataCounts }) {
       )}
 
       {/* Upload boxes side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
         <UploadBox
           step="1"
           label="Bons de Commande"
@@ -213,6 +225,21 @@ export default function FileUpload({ onDataImported, dataCounts }) {
           accept=".xlsx,.xls"
           color="#3d8b6e"
           bgColor="#e4f2ec"
+        />
+      </div>
+
+      <div style={{ maxWidth: 420, margin: '0 auto' }}>
+        <UploadBox
+          step="3"
+          label="Catégorisation (optionnel)"
+          detail="Structure × Catégorie × Nature"
+          description="stats_structure_sous_type"
+          inputRef={catRef}
+          onFile={f => handleFile(f, 'cat')}
+          status={catStatus}
+          accept=".xlsx,.xls"
+          color="#8a9a5b"
+          bgColor="#eef0e2"
         />
       </div>
 
