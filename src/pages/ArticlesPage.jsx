@@ -133,6 +133,7 @@ export default function ArticlesPage({ articleStats }) {
                     <th>Article</th>
                     <th>Nature d'article</th>
                     <th>Caractéristiques</th>
+                    <th style={{ textAlign: 'right' }}>Année</th>
                     <th style={{ textAlign: 'right' }}>PU actuel</th>
                     <th style={{ textAlign: 'right' }}>PU min - max</th>
                     <th style={{ textAlign: 'right' }}>Nb cmd</th>
@@ -149,6 +150,9 @@ export default function ArticlesPage({ articleStats }) {
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{a.natureArticle || '—'}</td>
                       <td style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
                         {a._caracText || '—'}
+                      </td>
+                      <td className="amount" style={{ fontSize: '0.78rem' }}>
+                        {a.derniereDate ? new Date(a.derniereDate).getFullYear() : '—'}
                       </td>
                       <td className="amount">{formatMontant(a.puActuel)}</td>
                       <td className="amount" style={{ fontSize: '0.78rem' }}>
