@@ -532,6 +532,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
               </tr>
               <tr>
                 <th></th>
+                <th></th>
                 <th>
                   <input type="text" value={colFilters.fournisseur} onChange={e => setColFilter('fournisseur', e.target.value)}
                     placeholder="Filtrer..." style={colFilterInputStyle} />
