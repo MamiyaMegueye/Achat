@@ -239,6 +239,7 @@ export function computeArticleStats(bcs) {
       fournisseur: frn,
       qte: bc.qte,
       objet: bc.objet || '',
+      numBC: bc.numBC,
     });
 
     if (!articleVolume[key]) {
