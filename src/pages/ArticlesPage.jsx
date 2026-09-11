@@ -21,11 +21,12 @@ export default function ArticlesPage({ articleStats }) {
     [referentiel]
   );
 
-  // Précalculer les caractéristiques (texte formaté) une fois par article
+  // Précalculer les caractéristiques (texte formaté) et les N° BC uniques par article
   const referentielAvecCarac = useMemo(() => {
     return referentiel.map(a => ({
       ...a,
       _caracText: formatCaracteristiques(`${a.label} ${(a.objets || []).join(' ')}`),
+      _numBCs: [...new Set((a.entries || []).map(e => e.numBC).filter(Boolean))],
     }));
   }, [referentiel]);
 
@@ -132,6 +133,7 @@ export default function ArticlesPage({ articleStats }) {
                   <tr>
                     <th>Article</th>
                     <th>Nature d'article</th>
+                    <th>N° BC</th>
                     <th>Caractéristiques</th>
                     <th style={{ textAlign: 'right' }}>Année</th>
                     <th style={{ textAlign: 'right' }}>PU actuel</th>
@@ -148,6 +150,14 @@ export default function ArticlesPage({ articleStats }) {
                     >
                       <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label || a.code}</td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{a.natureArticle || '—'}</td>
+                      <td style={{ fontSize: '0.75rem', fontFamily: 'monospace' }} title={a._numBCs.join(', ')}>
+                        {a._numBCs.length > 0 ? (
+                          <>
+                            {a._numBCs[0]}
+                            {a._numBCs.length > 1 && <span style={{ color: 'var(--text-muted)' }}> (+{a._numBCs.length - 1})</span>}
+                          </>
+                        ) : '—'}
+                      </td>
                       <td style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
                         {a._caracText || '—'}
                       </td>
