@@ -218,7 +218,7 @@ export default function App() {
         return <EngagementsPage cmds={stats.cmds} />;
       case 'reporting':
         return mode === 'api'
-          ? <ReportingPage cmds={stats.cmds} />
+          ? <ReportingPage cmds={stats.cmds} structureDirection={stats.structureDirection} />
           : (
             <div className="empty-state">
               <h2>Disponible en mode Base uniquement</h2>

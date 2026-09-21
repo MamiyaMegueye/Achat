@@ -5,15 +5,43 @@ import { computeReportingJournalier } from '../utils/stats';
 import { sortRows, makeToggleSort } from '../utils/sortUtils';
 import SortIcon from '../components/SortIcon';
 
-export default function ReportingPage({ cmds = [] }) {
+function normalizeStructureCode(code) {
+  return String(code || '').trim().toUpperCase();
+}
+
+export default function ReportingPage({ cmds = [], structureDirection = [] }) {
   const reporting = useMemo(() => computeReportingJournalier(cmds), [cmds]);
-  const { rows, totaux } = reporting;
+  const { rows, totaux: totauxGlobal } = reporting;
+
+  // Code Structure (COD_DIR de STK_CMD) -> libellé Direction/Service, depuis
+  // code_structure_direction.xlsx (meme principe que la page Instances).
+  const structureNameMap = useMemo(() => {
+    const map = {};
+    structureDirection.forEach(r => {
+      if (r.code && r.direction) map[normalizeStructureCode(r.code)] = r.direction;
+    });
+    return map;
+  }, [structureDirection]);
+
+  // Années disponibles (extraites des données)
+  const availableYears = useMemo(() => {
+    const yrs = new Set();
+    rows.forEach(r => {
+      if (!r.date) return;
+      const y = r.date.slice(0, 4);
+      const n = parseInt(y, 10);
+      if (n >= 2020 && n <= 2030) yrs.add(y);
+    });
+    return [...yrs].sort().reverse();
+  }, [rows]);
+  const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
 
   const [dateMin, setDateMin] = useState('');
   const [dateMax, setDateMax] = useState('');
 
   const filteredRows = useMemo(() => {
     const base = rows.filter(r => {
+      if (selectedYear && r.date && r.date.slice(0, 4) !== selectedYear) return false;
       if (dateMin && r.date < dateMin) return false;
       if (dateMax && r.date > dateMax) return false;
       return true;
@@ -36,13 +64,43 @@ export default function ReportingPage({ cmds = [] }) {
     }
 
     return base;
-  }, [rows, dateMin, dateMax]);
+  }, [rows, selectedYear, dateMin, dateMax]);
+
+  // KPIs recalculés sur les lignes filtrées (année + dates)
+  const totaux = useMemo(() => {
+    let totalCommandes = 0, totalDA = 0, totalFactures = 0, totalFrnPayes = 0;
+    filteredRows.forEach(r => {
+      totalCommandes += r.nbCommandes || 0;
+      totalDA += r.nbDA || 0;
+      totalFactures += r.nbFactures || 0;
+      totalFrnPayes += r.nbFrnPayes || 0;
+    });
+    // Fournisseurs non payés : recalcul sur les cmds filtrées par année
+    const frnStatut = {};
+    cmds.forEach(c => {
+      if (!c.nomFrn) return;
+      const k = c.datCde ? String(c.datCde instanceof Date ? c.datCde.getFullYear() : new Date(c.datCde).getFullYear()) : null;
+      if (selectedYear && k !== selectedYear) return;
+      if (!(c.nomFrn in frnStatut)) frnStatut[c.nomFrn] = false;
+      if (c.paiementDate) frnStatut[c.nomFrn] = true;
+    });
+    const fournisseursPayes = Object.keys(frnStatut).filter(k => frnStatut[k]).sort();
+    const fournisseursNonPayes = Object.keys(frnStatut).filter(k => !frnStatut[k]).sort();
+    return {
+      totalCommandes, totalDA, totalFactures,
+      nbFournisseursPayes: fournisseursPayes.length,
+      nbFournisseursNonPayes: fournisseursNonPayes.length,
+      fournisseursPayes,
+      fournisseursNonPayes,
+    };
+  }, [filteredRows, cmds, selectedYear]);
 
   const fmtDate = (k) => {
     const [y, m, d] = k.split('-');
     return `${d}/${m}/${y}`;
   };
 
+  const [showFrnList, setShowFrnList] = useState(null); // 'payes' | 'nonPayes' | null
   const [selectedDay, setSelectedDay] = useState(null);
 
   const dayKey = (d) => {
@@ -81,10 +139,16 @@ export default function ReportingPage({ cmds = [] }) {
         : null;
       return fromArticles ?? c.montTTC ?? c.montHT ?? null;
     };
+    // Libelle de la structure (code -> nom Direction/Service), depuis le
+    // meme referentiel que la page Instances.
+    const structureLibelleOf = (c) => {
+      const code = structureOf(c);
+      return code ? (structureNameMap[normalizeStructureCode(code)] || null) : null;
+    };
 
     cmds.forEach(c => {
       if (dayKey(c.datCde) === selectedDay) {
-        out.push({ type: 'Commande émise', ref: c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), montant: montantCmdOf(c) });
+        out.push({ type: 'Commande émise', ref: c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), structureLibelle: structureLibelleOf(c), montant: montantCmdOf(c) });
       }
       // Reference = le bon de commande (datCde), pas la date de la DA elle-meme
       // (datDa, souvent vide sur les commandes recentes).
@@ -97,18 +161,18 @@ export default function ReportingPage({ cmds = [] }) {
           // jour via STK_CMD) comme approximation -- dupliquee entre la DA
           // et la commande, comme pour la structure.
           // Montant de la commande liee (STK_CMD), en repli faute de montant propre a la DA.
-          out.push({ type: "Demande d'achat", ref: c.numDa, tiers: c.demandeur || '—', article: '—', objet: c.objDa || c.libelleDa || objetCmdOf(c) || '—', structure: structureOf(c), montant: montantCmdOf(c) });
+          out.push({ type: "Demande d'achat", ref: c.numDa, tiers: c.demandeur || '—', article: '—', objet: c.objDa || c.libelleDa || objetCmdOf(c) || '—', structure: structureOf(c), structureLibelle: structureLibelleOf(c), montant: montantCmdOf(c) });
         }
       }
       if (dayKey(c.factDateFact) === selectedDay) {
-        out.push({ type: 'Facture émise', ref: c.factNumFact || c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), montant: montantCmdOf(c) });
+        out.push({ type: 'Facture émise', ref: c.factNumFact || c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), structureLibelle: structureLibelleOf(c), montant: montantCmdOf(c) });
       }
       if (dayKey(c.paiementDate) === selectedDay) {
-        out.push({ type: 'Paiement', ref: c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), montant: c.paiementMontant ?? montantCmdOf(c) });
+        out.push({ type: 'Paiement', ref: c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), structureLibelle: structureLibelleOf(c), montant: c.paiementMontant ?? montantCmdOf(c) });
       }
     });
     return out;
-  }, [cmds, selectedDay]);
+  }, [cmds, selectedDay, structureNameMap]);
 
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
@@ -164,7 +228,7 @@ export default function ReportingPage({ cmds = [] }) {
     // colonnes (6 pour le general, 8 pour le detail) -- on prend la plus
     // large des deux pour chaque position de colonne.
     ws.columns = [
-      { width: 20 }, { width: 18 }, { width: 28 }, { width: 35 }, { width: 45 }, { width: 30 }, { width: 16 }, { width: 30 },
+      { width: 20 }, { width: 18 }, { width: 28 }, { width: 35 }, { width: 45 }, { width: 30 }, { width: 30 }, { width: 16 }, { width: 30 },
     ];
     // Retour automatique sur toutes les colonnes pour afficher le texte en entier
     ws.columns.forEach(col => { col.alignment = { wrapText: true, vertical: 'top' }; });
@@ -183,14 +247,14 @@ export default function ReportingPage({ cmds = [] }) {
     // ligne vide), si un jour est actif.
     if (selectedDay) {
       ws.addRow([]);
-      const detailHeaderRow = ws.addRow(['Type', 'Référence', 'Fournisseur', 'Article', 'Objet', 'Structure', 'Montant', 'Observation']);
+      const detailHeaderRow = ws.addRow(['Type', 'Référence', 'Fournisseur', 'Article', 'Objet', 'Structure', 'Libellé Structure', 'Montant', 'Observation']);
       const detailHeaderRowNum = detailHeaderRow.number;
       dayDetail.forEach(d => {
-        ws.addRow([d.type, d.ref ?? '—', d.tiers, d.article ?? '—', d.objet, d.structure || '—', d.montant != null ? Math.round(d.montant) : null, '']);
+        ws.addRow([d.type, d.ref ?? '—', d.tiers, d.article ?? '—', d.objet, d.structure || '—', d.structureLibelle || '—', d.montant != null ? Math.round(d.montant) : null, '']);
       });
       const detailEndRow = ws.lastRow.number;
       colorHeaderRow(ws, detailHeaderRowNum);
-      addBorders(ws, detailHeaderRowNum, detailEndRow, 8);
+      addBorders(ws, detailHeaderRowNum, detailEndRow, 9);
     }
 
     const buffer = await wb.xlsx.writeBuffer();
@@ -238,14 +302,14 @@ export default function ReportingPage({ cmds = [] }) {
 
       {/* KPI - fournisseurs */}
       <div className="grid-2">
-        <div className="card kpi-card">
+        <div className="card kpi-card" onClick={() => setShowFrnList(showFrnList === 'payes' ? null : 'payes')} style={{ cursor: 'pointer', outline: showFrnList === 'payes' ? '2px solid var(--success)' : undefined }}>
           <div className="kpi-icon" style={{ background: 'var(--success-light)' }}>
             <CheckCircle2 size={20} style={{ color: 'var(--success)' }} />
           </div>
           <div className="kpi-value" style={{ color: 'var(--success)' }}>{totaux.nbFournisseursPayes}</div>
           <div className="kpi-label">Fournisseurs payés</div>
         </div>
-        <div className="card kpi-card">
+        <div className="card kpi-card" onClick={() => setShowFrnList(showFrnList === 'nonPayes' ? null : 'nonPayes')} style={{ cursor: 'pointer', outline: showFrnList === 'nonPayes' ? '2px solid var(--danger)' : undefined }}>
           <div className="kpi-icon" style={{ background: 'var(--danger-light)' }}>
             <XCircle size={20} style={{ color: 'var(--danger)' }} />
           </div>
@@ -254,11 +318,53 @@ export default function ReportingPage({ cmds = [] }) {
         </div>
       </div>
 
+      {/* Liste fournisseurs payés / non payés */}
+      {showFrnList && (
+        <div className="card full-width">
+          <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {showFrnList === 'payes' ? <CheckCircle2 size={15} style={{ color: 'var(--success)' }} /> : <XCircle size={15} style={{ color: 'var(--danger)' }} />}
+              {showFrnList === 'payes' ? 'Fournisseurs payés' : 'Fournisseurs non payés'}
+              <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>
+                — {(showFrnList === 'payes' ? totaux.fournisseursPayes : totaux.fournisseursNonPayes).length} fournisseur(s)
+              </span>
+            </span>
+            <button onClick={() => setShowFrnList(null)}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.75rem', background: 'var(--bg-main)', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+              <X size={13} /> Fermer
+            </button>
+          </div>
+          <div style={{ maxHeight: 350, overflowY: 'auto', marginTop: 10 }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 50 }}>N°</th>
+                  <th>Fournisseur</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(showFrnList === 'payes' ? totaux.fournisseursPayes : totaux.fournisseursNonPayes).map((frn, i) => (
+                  <tr key={frn}>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{i + 1}</td>
+                    <td style={{ fontSize: '0.78rem' }}>{frn}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Tableau journalier */}
       <div className="card full-width">
         <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <span>Détail par jour <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— {filteredRows.length} jour(s)</span></span>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)}
+              style={{ padding: '5px 8px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.78rem', background: 'white' }}>
+              <option value="">Toutes les années</option>
+              {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
             <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Du</label>
             <input type="date" value={dateMin} onChange={e => setDateMin(e.target.value)}
               style={{ padding: '5px 8px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.78rem' }} />
@@ -351,7 +457,7 @@ export default function ReportingPage({ cmds = [] }) {
               <X size={13} /> Fermer
             </button>
           </div>
-          <div style={{ maxHeight: 420, overflowY: 'auto', marginTop: 10 }}>
+          <div style={{ maxHeight: 420, overflowY: 'auto', overflowX: 'auto', marginTop: 10 }}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -361,6 +467,7 @@ export default function ReportingPage({ cmds = [] }) {
                   <th>Article</th>
                   <th onClick={() => detailToggleSort('objet')} style={{ cursor: 'pointer' }}>Objet <SortIcon sortKey={detailSortKey} sortDir={detailSortDir} col="objet" /></th>
                   <th onClick={() => detailToggleSort('structure')} style={{ cursor: 'pointer' }}>Structure <SortIcon sortKey={detailSortKey} sortDir={detailSortDir} col="structure" /></th>
+                  <th onClick={() => detailToggleSort('structureLibelle')} style={{ cursor: 'pointer' }}>Libellé Structure <SortIcon sortKey={detailSortKey} sortDir={detailSortDir} col="structureLibelle" /></th>
                   <th onClick={() => detailToggleSort('montant')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant <SortIcon sortKey={detailSortKey} sortDir={detailSortDir} col="montant" /></th>
                 </tr>
               </thead>
@@ -371,8 +478,9 @@ export default function ReportingPage({ cmds = [] }) {
                     <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{d.ref ?? '—'}</td>
                     <td style={{ fontSize: '0.78rem' }}>{d.tiers}</td>
                     <td style={{ fontSize: '0.78rem', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.article}</td>
-                    <td style={{ fontSize: '0.78rem', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.objet}</td>
+                    <td style={{ fontSize: '0.78rem', minWidth: 260, whiteSpace: 'normal', wordBreak: 'break-word' }}>{d.objet}</td>
                     <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{d.structure || '—'}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{d.structureLibelle || '—'}</td>
                     <td className="amount">{d.montant != null ? new Intl.NumberFormat('fr-FR').format(Math.round(d.montant)) : '—'}</td>
                   </tr>
                 ))}
