@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { formatMontant, daysBetween } from '../utils/stats';
 import { Filter, X } from 'lucide-react';
+import { sortRows, makeToggleSort } from '../utils/sortUtils';
+import SortIcon from '../components/SortIcon';
 
 export default function EngagementsPage({ cmds }) {
   const today = new Date();
@@ -69,6 +71,14 @@ export default function EngagementsPage({ cmds }) {
     : cmdsAffichees;
 
   const totalFiltre = cmdsFilterees.reduce((s, e) => s + e.montTTC, 0);
+
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+  const toggleSort = makeToggleSort(sortKey, setSortKey, setSortDir);
+  const cmdsTriees = useMemo(
+    () => (sortKey ? sortRows(cmdsFilterees, sortKey, sortDir) : cmdsFilterees),
+    [cmdsFilterees, sortKey, sortDir]
+  );
 
   const fmtMois = (m) => {
     const [y, mo] = m.split('-');
@@ -184,20 +194,20 @@ export default function EngagementsPage({ cmds }) {
           <table className="data-table">
             <thead>
               <tr>
-                <th>N° CMD</th>
-                <th>Fournisseur</th>
+                <th onClick={() => toggleSort('numCmd')} style={{ cursor: 'pointer' }}>N° CMD <SortIcon sortKey={sortKey} sortDir={sortDir} col="numCmd" /></th>
+                <th onClick={() => toggleSort('fournisseur')} style={{ cursor: 'pointer' }}>Fournisseur <SortIcon sortKey={sortKey} sortDir={sortDir} col="fournisseur" /></th>
                 <th>Article</th>
-                <th>Date Cde</th>
-                <th>Date Réception</th>
-                <th>Date Facture</th>
-                <th>Date échéance</th>
-                <th style={{ textAlign: 'right' }}>Jours d'attente</th>
-                <th style={{ textAlign: 'right' }}>Montant HT</th>
-                <th style={{ textAlign: 'right' }}>Montant TTC</th>
+                <th onClick={() => toggleSort('datCde')} style={{ cursor: 'pointer' }}>Date Cde <SortIcon sortKey={sortKey} sortDir={sortDir} col="datCde" /></th>
+                <th onClick={() => toggleSort('datRec')} style={{ cursor: 'pointer' }}>Date Réception <SortIcon sortKey={sortKey} sortDir={sortDir} col="datRec" /></th>
+                <th onClick={() => toggleSort('datFacture')} style={{ cursor: 'pointer' }}>Date Facture <SortIcon sortKey={sortKey} sortDir={sortDir} col="datFacture" /></th>
+                <th onClick={() => toggleSort('dateEcheance')} style={{ cursor: 'pointer' }}>Date échéance <SortIcon sortKey={sortKey} sortDir={sortDir} col="dateEcheance" /></th>
+                <th onClick={() => toggleSort('joursAttente')} style={{ textAlign: 'right', cursor: 'pointer' }}>Jours d'attente <SortIcon sortKey={sortKey} sortDir={sortDir} col="joursAttente" /></th>
+                <th onClick={() => toggleSort('montHT')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant HT <SortIcon sortKey={sortKey} sortDir={sortDir} col="montHT" /></th>
+                <th onClick={() => toggleSort('montTTC')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant TTC <SortIcon sortKey={sortKey} sortDir={sortDir} col="montTTC" /></th>
               </tr>
             </thead>
             <tbody>
-              {cmdsFilterees.map((e, i) => (
+              {cmdsTriees.map((e, i) => (
                 <tr key={i} style={{ background: e.joursAttente > 90 ? '#f8f0e8' : undefined }}>
                   <td style={{ fontWeight: 600 }}>{e.numCmd}</td>
                   <td style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{e.fournisseur}</td>

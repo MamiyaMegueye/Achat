@@ -1,21 +1,22 @@
 import React from 'react';
 import {
-  LayoutDashboard, Upload, Clock, Users, Package,
-  AlertTriangle, Building2, FileWarning, Wallet, FileDown
+  LayoutDashboard, Upload, Clock, Package,
+  AlertTriangle, Building2, FileWarning, Wallet, CalendarCheck, ListChecks
 } from 'lucide-react';
 
 const navItems = [
   { id: 'import', label: 'Import', icon: Upload },
   { id: 'dashboard', label: 'Vue d\'ensemble', icon: LayoutDashboard },
-  { id: 'delays', label: 'Délais', icon: Clock },
-  { id: 'suppliers', label: 'Fournisseurs', icon: Users },
   { id: 'articles', label: 'Articles & Prix', icon: Package },
+  { id: 'instances', label: 'Instances', icon: ListChecks },
+  { id: 'reporting', label: 'Reporting Journalier', icon: CalendarCheck },
+  { id: 'delays', label: 'Délais & Fournisseurs', icon: Clock },
   { id: 'engagements', label: 'Échéancier de paiement', icon: Wallet },
   { id: 'structures', label: 'Structures', icon: Building2 },
   { id: 'anomalies', label: 'Anomalies', icon: FileWarning },
 ];
 
-export default function TopNav({ activePage, onNavigate, dataLoaded, onExportPdf, exporting }) {
+export default function TopNav({ activePage, onNavigate, dataLoaded, mode }) {
   return (
     <header className="top-nav">
       {/* Brand */}
@@ -32,12 +33,14 @@ export default function TopNav({ activePage, onNavigate, dataLoaded, onExportPdf
         {navItems.map(item => {
           const active = activePage === item.id;
           const Icon = item.icon;
-          const disabled = item.id !== 'import' && !dataLoaded;
+          const needsApiMode = item.id === 'reporting' && mode !== 'api';
+          const disabled = (item.id !== 'import' && !dataLoaded) || needsApiMode;
           return (
             <button
               key={item.id}
               onClick={() => !disabled && onNavigate(item.id)}
               disabled={disabled}
+              title={needsApiMode ? 'Disponible en mode Base uniquement' : undefined}
               className={`top-nav-tab ${active ? 'active' : ''}`}
             >
               <Icon size={15} />
@@ -45,17 +48,6 @@ export default function TopNav({ activePage, onNavigate, dataLoaded, onExportPdf
             </button>
           );
         })}
-        {dataLoaded && (
-          <button
-            onClick={onExportPdf}
-            disabled={exporting}
-            className="top-nav-tab"
-            style={{ marginLeft: 'auto', background: exporting ? '#ddd' : '#c17550', color: 'white', borderRadius: 6, padding: '5px 14px' }}
-          >
-            <FileDown size={15} />
-            <span>{exporting ? 'Export...' : 'Exporter PDF'}</span>
-          </button>
-        )}
       </nav>
     </header>
   );

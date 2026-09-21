@@ -1,8 +1,18 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { AlertTriangle, FileX, CreditCard } from 'lucide-react';
 import { formatMontant } from '../utils/stats';
+import { sortRows, makeToggleSort } from '../utils/sortUtils';
+import SortIcon from '../components/SortIcon';
 
 export default function AnomaliesPage({ missingDocs, cmds }) {
+  const [sf1Key, setSf1Key] = useState(null);
+  const [sf1Dir, setSf1Dir] = useState('asc');
+  const sf1ToggleSort = makeToggleSort(sf1Key, setSf1Key, setSf1Dir);
+
+  const [retKey, setRetKey] = useState('ecart');
+  const [retDir, setRetDir] = useState('asc');
+  const retToggleSort = makeToggleSort(retKey, setRetKey, setRetDir);
+
   // Analyse par ordre de paiement → retenues de garantie
   const ordresMap = {};
   cmds.forEach(c => {
@@ -28,10 +38,13 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
         ecart,
         nbCmds: o.commandes.length,
         fournisseur: o.commandes[0].fournisseur,
+        tauxPct: sommeTTC > 0 ? Math.round(Math.abs(ecart) / sommeTTC * 100) : 0,
       };
     })
-    .filter(o => o.ecart < -100 && o.sommeTTC > 0)
-    .sort((a, b) => a.ecart - b.ecart);
+    .filter(o => o.ecart < -100 && o.sommeTTC > 0);
+
+  const retenuesSorted = sortRows(retenues, retKey, retDir);
+  const sansFactureSorted = sortRows(missingDocs.sansFacture, sf1Key, sf1Dir);
 
   // Bilan global : commandé vs payé
   const totalTTC = cmds.reduce((s, c) => s + (c.montTTC || 0), 0);
@@ -125,14 +138,14 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>N° CMD</th>
-                  <th>Fournisseur</th>
-                  <th style={{ textAlign: 'right' }}>Montant TTC</th>
-                  <th>Date réception</th>
+                  <th onClick={() => sf1ToggleSort('numCmd')} style={{ cursor: 'pointer' }}>N° CMD <SortIcon sortKey={sf1Key} sortDir={sf1Dir} col="numCmd" /></th>
+                  <th onClick={() => sf1ToggleSort('fournisseur')} style={{ cursor: 'pointer' }}>Fournisseur <SortIcon sortKey={sf1Key} sortDir={sf1Dir} col="fournisseur" /></th>
+                  <th onClick={() => sf1ToggleSort('montant')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant TTC <SortIcon sortKey={sf1Key} sortDir={sf1Dir} col="montant" /></th>
+                  <th onClick={() => sf1ToggleSort('dateRec')} style={{ cursor: 'pointer' }}>Date réception <SortIcon sortKey={sf1Key} sortDir={sf1Dir} col="dateRec" /></th>
                 </tr>
               </thead>
               <tbody>
-                {missingDocs.sansFacture.map((c, i) => (
+                {sansFactureSorted.map((c, i) => (
                   <tr key={i} style={{ background: i % 2 === 0 ? '#f8f0e8' : '#fae8e6' }}>
                     <td style={{ fontWeight: 500 }}>{c.numCmd}</td>
                     <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -159,17 +172,17 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>N° Ordre</th>
-                  <th>Fournisseur</th>
-                  <th style={{ textAlign: 'center' }}>Nb CMD</th>
-                  <th style={{ textAlign: 'right' }}>Somme TTC</th>
-                  <th style={{ textAlign: 'right' }}>Montant payé</th>
-                  <th style={{ textAlign: 'right' }}>Montant retenu</th>
-                  <th style={{ textAlign: 'right' }}>Taux</th>
+                  <th onClick={() => retToggleSort('numOrdre')} style={{ cursor: 'pointer' }}>N° Ordre <SortIcon sortKey={retKey} sortDir={retDir} col="numOrdre" /></th>
+                  <th onClick={() => retToggleSort('fournisseur')} style={{ cursor: 'pointer' }}>Fournisseur <SortIcon sortKey={retKey} sortDir={retDir} col="fournisseur" /></th>
+                  <th onClick={() => retToggleSort('nbCmds')} style={{ textAlign: 'center', cursor: 'pointer' }}>Nb CMD <SortIcon sortKey={retKey} sortDir={retDir} col="nbCmds" /></th>
+                  <th onClick={() => retToggleSort('sommeTTC')} style={{ textAlign: 'right', cursor: 'pointer' }}>Somme TTC <SortIcon sortKey={retKey} sortDir={retDir} col="sommeTTC" /></th>
+                  <th onClick={() => retToggleSort('montantPaye')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant payé <SortIcon sortKey={retKey} sortDir={retDir} col="montantPaye" /></th>
+                  <th onClick={() => retToggleSort('ecart')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant retenu <SortIcon sortKey={retKey} sortDir={retDir} col="ecart" /></th>
+                  <th onClick={() => retToggleSort('tauxPct')} style={{ textAlign: 'right', cursor: 'pointer' }}>Taux <SortIcon sortKey={retKey} sortDir={retDir} col="tauxPct" /></th>
                 </tr>
               </thead>
               <tbody>
-                {retenues.map((o, i) => (
+                {retenuesSorted.map((o, i) => (
                   <tr key={i}>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', fontWeight: 500 }}>{o.numOrdre}</td>
                     <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -183,8 +196,8 @@ export default function AnomaliesPage({ missingDocs, cmds }) {
                     <td className="amount" style={{ color: '#a63b32', fontWeight: 600 }}>
                       {formatMontant(Math.abs(o.ecart))}
                     </td>
-                    <td className="amount" style={{ fontWeight: 600, color: Math.round(Math.abs(o.ecart) / o.sommeTTC * 100) !== 2 ? '#a63b32' : 'var(--text-secondary)' }}>
-                      {Math.round(Math.abs(o.ecart) / o.sommeTTC * 100)}%
+                    <td className="amount" style={{ fontWeight: 600, color: o.tauxPct !== 2 ? '#a63b32' : 'var(--text-secondary)' }}>
+                      {o.tauxPct}%
                     </td>
                   </tr>
                 ))}

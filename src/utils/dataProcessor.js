@@ -50,6 +50,34 @@ function parseExcelDate(val) {
   return null;
 }
 
+// Extrait une annee correcte a partir d'une cellule Excel "Annee" :
+// gere le cas ou la cellule est formatee comme une date (renvoyee par XLSX
+// sous forme de numero de serie, ex: 45713 pour 25/02/2025) au lieu d'un
+// simple entier (2020, 2021, ...).
+function parseAnnee(val) {
+  if (val === null || val === undefined || val === '') return null;
+
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return null;
+    return val.getFullYear();
+  }
+
+  const n = Number(val);
+  if (!isNaN(n)) {
+    // Deja une annee plausible (ex: 2023)
+    if (n >= 1990 && n <= 2100) return n;
+    // Numero de serie Excel (date mal formatee dans la colonne Annee)
+    if (n >= 30000 && n <= 60000) {
+      const d = excelSerialToDate(n);
+      if (!isNaN(d.getTime())) return d.getFullYear();
+    }
+    return null;
+  }
+
+  const d = parseExcelDate(val);
+  return d ? d.getFullYear() : null;
+}
+
 function cleanStr(v) {
   if (!v) return '';
   return String(v).replace(/\/\/$/g, '').replace(/\/\//g, '').trim();
@@ -123,7 +151,7 @@ export function parseBonsCommande(workbook) {
       return {
         structure: cleanStr(get('Structure')),
         date: parseExcelDate(get('Date')),
-        annee: get('Année', 'Annee', 'ANNEE'),
+        annee: parseAnnee(get('Année', 'Annee', 'ANNEE')),
         numBC: Number(get('N° BC', 'N°BC', 'NUM_BC')) || 0,
         codeArticle: String(get('CODE ARTICLE', 'CODE_ARTICLE', 'CODEARTICLE') || '').trim(),
         qte: Number(get('QTE', 'Qte', 'QUANTITE')) || 0,
@@ -212,10 +240,20 @@ export function parseSuiviCmd(workbook) {
 
       return {
         numCmd: Number(get('NUM_CMD')) || 0,
-        anCmd: get('AN_CMD'),
+        anCmd: parseAnnee(get('AN_CMD')),
         datCde: parseExcelDate(get('DATCDE', 'DAT_CDE', 'DATE_CDE', 'DATE COMMANDE')),
         dateAffichage: parseExcelDate(get('DATE_AFFICHAGE', 'DATE AFFICHAGE', 'DATEAFFICHAGE')),
         delaiLivraison: parseExcelDate(get('DELAI DE LIVRAISON', 'DELAI_LIVRAISON', 'DELAI_DE_LIVRAISON', 'DELAILIVRAISON', 'DELAI')),
+        // --- Demande d'Achat (DA), en amont de la commande ---
+        anDa: parseAnnee(get('Année da', 'ANNEE_DA', 'ANNEE DA', 'AN_DA')),
+        numDa: get('N° da', 'NUM_DA', 'N°DA', 'NUMDA') ? Number(get('N° da', 'NUM_DA', 'N°DA', 'NUMDA')) || null : null,
+        datDa: parseExcelDate(get('Date', 'DAT_DA', 'DATDA', 'DATE_DA')),
+        objDa: normalizeArticleName(cleanStr(get('objet', 'OBJ_DA', 'OBJDA'))),
+        libelleDa: cleanStr(get('LIBELLE', 'LIBELLÉ')),
+        demandeur: cleanStr(get('DEMANDEUR')),
+        numAff: get('NUM_AFF') ? String(get('NUM_AFF')).trim() : null,
+        dateLimite: parseExcelDate(get('DATE_LIMITE')),
+        dateClot: parseExcelDate(get('DATE_CLOT')),
         codeFour: Number(get('COD_FOUR', 'CODE_FOUR')) || 0,
         nomFrn: cleanStr(get('NOM_FRN', 'NOM_FOURNISSEUR', 'FOURNISSEUR')),
         obsCde: normalizeArticleName(cleanStr(get('OBS_CDE', 'OBJET', 'OBSERVATION'))),
@@ -256,10 +294,10 @@ export function parseStructureCategorisation(workbook) {
     return {
       structure: String(get('Structure') || '').trim(),
       nomStructure: String(get('Nom Structure') || '').trim(),
-      annee: get('Annee', 'Année') != null ? Number(get('Annee', 'Année')) : null,
+      annee: parseAnnee(get('Annee', 'Année')),
       grandeCategorie: String(get('Grande categorie', 'Grande catégorie') || '').trim(),
       categorie: String(get('Categorie', 'Catégorie') || '').trim(),
-      sousType: String(get('Sous-type', 'Sous type', 'SousType') || '').trim(),
+      sousType: String(get("Nature d'article", 'Nature article', 'Sous-type', 'Sous type', 'SousType') || '').trim(),
       nbLignes: Number(get('Nb lignes')) || 0,
       montantHT: Number(get('Montant HT')) || 0,
       totalStructure: Number(get('Total structure')) || 0,
@@ -289,10 +327,10 @@ export function parseArticleCategorisation(workbook) {
       numBC,
       codeArticle,
       structure: String(get('Structure') || '').trim(),
-      annee: get('Annee', 'Année') != null ? Number(get('Annee', 'Année')) : null,
+      annee: parseAnnee(get('Annee', 'Année')),
       grandeCategorie: String(get('grande_categorie', 'Grande categorie', 'Grande catégorie') || '').trim(),
       categorie: String(get('categorie', 'Categorie', 'Catégorie') || '').trim(),
-      sousType: String(get('sous_type', 'Sous-type', 'Sous type') || '').trim(),
+      sousType: String(get("Nature d'article", 'nature_article', 'sous_type', 'Sous-type', 'Sous type') || '').trim(),
     };
   }).filter(r => r.codeArticle && r.numBC);
 }

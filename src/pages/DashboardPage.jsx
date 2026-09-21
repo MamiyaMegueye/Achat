@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
+import ExcelJS from 'exceljs';
 import {
-  ShoppingCart, CreditCard, PackageCheck, AlertTriangle, Ban, X, Search, ChevronUp, ChevronDown
+  ShoppingCart, CreditCard, PackageCheck, AlertTriangle, Ban, X, Search, ChevronUp, ChevronDown, FileDown
 } from 'lucide-react';
-import { formatMontant } from '../utils/stats';
+import { formatMontant, computeKPIs } from '../utils/stats';
 import { matchesAnySearch } from '../utils/search';
+import { sortRows, makeToggleSort } from '../utils/sortUtils';
 
-export default function DashboardPage({ kpis, delays, supplierStats, paymentAlerts, cmds = [], seasonality = [] }) {
+export default function DashboardPage({ kpis: kpisAll, delays, supplierStats, paymentAlerts, cmds = [], seasonality = [] }) {
 
   const colFilterInputStyle = {
     width: '100%', padding: '4px 6px', fontSize: '0.72rem', fontWeight: 400,
@@ -23,6 +25,14 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
   const [search, setSearch] = useState('');
   const [statutFilter, setStatutFilter] = useState('');
   const [anneeFilter, setAnneeFilter] = useState('');
+
+  // Vue d'ensemble filtree par annee (meme filtre que le tableau ci-dessous)
+  const kpis = useMemo(() => {
+    if (!anneeFilter) return kpisAll;
+    const cmdsAnnee = cmds.filter(c => String(c.anCmd) === anneeFilter);
+    const articlesAnnee = cmdsAnnee.flatMap(c => c.articles || []);
+    return computeKPIs(cmdsAnnee, articlesAnnee);
+  }, [kpisAll, cmds, anneeFilter]);
   const [sortKey, setSortKey] = useState('datCde');
   const [sortDir, setSortDir] = useState('desc');
 
@@ -132,12 +142,31 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     let rows = cmds.map(c => ({ ...c, statut: getStatut(c) }));
 
     if (search.trim()) {
+      const fmtDS = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '';
       rows = rows.filter(c =>
         matchesAnySearch([
           String(c.numCmd || ''),
+          String(c.anCmd || ''),
           c.nomFrn || '',
-          c.obsCde || '',
+          String(c.codeFour || ''),
           ...(c.articles || []).map(a => a.article || ''),
+          ...(c.articles || []).map(a => a.natureArticle || ''),
+          c.obsCde || '',
+          String(c.numDa || ''),
+          c.objDa || '',
+          c.libelleDa || '',
+          c.demandeur || '',
+          String(c.numAff || ''),
+          c.statut || '',
+          fmtDS(c.dateAffichage),
+          fmtDS(c.dateLimite),
+          fmtDS(c.dateClot),
+          fmtDS(c.datDa),
+          fmtDS(c.datCde),
+          fmtDS(c.datRec),
+          fmtDS(c.factDateFr),
+          fmtDS(c.paiementDate),
+          String(c.montTTC ?? c.montHT ?? ''),
         ], search)
       );
     }
@@ -182,21 +211,11 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
       rows = rows.filter(c => (c.articles || []).some(a => (a.pu || 0) <= Number(colFilters.puMax)));
     }
 
-    rows.sort((a, b) => {
-      let va = a[sortKey], vb = b[sortKey];
-      if (sortKey === 'datCde') {
-        va = va ? new Date(va).getTime() : 0;
-        vb = vb ? new Date(vb).getTime() : 0;
-      }
-      if (sortKey === 'montTTC' || sortKey === 'montHT') {
-        va = va || 0; vb = vb || 0;
-      }
-      if (typeof va === 'string') va = va.toLowerCase();
-      if (typeof vb === 'string') vb = vb.toLowerCase();
-      if (va < vb) return sortDir === 'asc' ? -1 : 1;
-      if (va > vb) return sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
+    // Tri centralise (utils/sortUtils) : normalise Date/nombre/texte et place
+    // les valeurs manquantes en fin de liste, quel que soit le sens du tri.
+    rows = sortRows(rows, sortKey, sortDir, row => (
+      sortKey === 'montTTC' || sortKey === 'montHT' ? (row.montTTC ?? row.montHT ?? 0) : row[sortKey]
+    ));
 
     return rows;
   }, [cmds, search, statutFilter, anneeFilter, sortKey, sortDir, colFilters]);
@@ -206,20 +225,105 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
     [cmds]
   );
 
-  const toggleSort = (key) => {
-    if (sortKey === key) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortKey(key);
-      setSortDir('desc');
-    }
-  };
+  const toggleSort = makeToggleSort(sortKey, setSortKey, setSortDir);
 
   const statutColors = {
     'Payée': { color: '#2b6e52', bg: '#e4f2ec' },
     'Facturée': { color: '#5e5288', bg: '#edeaf4' },
     'Réceptionnée': { color: '#b8663f', bg: '#f8f0e8' },
     'Non réceptionnée': { color: '#a63b32', bg: '#fae8e6' },
+  };
+
+  const exportToExcel = async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Commandes');
+
+    ws.columns = [
+      { header: 'Date Affichage', key: 'dateAffichage', width: 14 },
+      { header: 'N° Affichage', key: 'numAff', width: 14 },
+      { header: 'Date Limite', key: 'dateLimite', width: 14 },
+      { header: 'Date Clôture', key: 'dateClot', width: 14 },
+      { header: 'N° DA', key: 'numDa', width: 12 },
+      { header: 'Date DA', key: 'datDa', width: 14 },
+      { header: 'Objet DA', key: 'objDa', width: 28 },
+      { header: 'Demandeur', key: 'demandeur', width: 20 },
+      { header: 'N° CMD', key: 'numCmd', width: 14 },
+      { header: 'Année', key: 'anCmd', width: 10 },
+      { header: 'Fournisseur', key: 'nomFrn', width: 26 },
+      { header: 'Article', key: 'article', width: 32 },
+      { header: "Nature d'article", key: 'nature', width: 20 },
+      { header: 'Prix unitaire', key: 'pu', width: 14 },
+      { header: 'Objet', key: 'objet', width: 30 },
+      { header: 'Date Cde', key: 'datCde', width: 14 },
+      { header: 'Délai Livr. Prévu', key: 'delaiLivraison', width: 16 },
+      { header: 'Date Réception', key: 'datRec', width: 14 },
+      { header: 'Date Facture', key: 'factDateFr', width: 14 },
+      { header: 'Date Paiement', key: 'paiementDate', width: 14 },
+      { header: 'Montant TTC', key: 'montTTC', width: 16 },
+      { header: 'Statut', key: 'statut', width: 16 },
+      { header: 'Observation', key: 'observation', width: 30 },
+    ];
+
+    const fmtD = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '';
+
+    filteredCmds.forEach(c => {
+      const articles = c.articles || [];
+      ws.addRow({
+        numCmd: c.numCmd,
+        anCmd: c.anCmd || '',
+        nomFrn: c.nomFrn || '',
+        article: articles.map(a => a.article).filter(Boolean).join(', '),
+        nature: [...new Set(articles.map(a => a.natureArticle).filter(Boolean))].join(', '),
+        pu: articles.length ? (articles.length === 1 ? articles[0].pu : `${Math.min(...articles.map(a => a.pu || 0))} – ${Math.max(...articles.map(a => a.pu || 0))}`) : '',
+        objet: c.obsCde || '',
+        numDa: c.numDa || '',
+        datDa: fmtD(c.datDa),
+        objDa: c.objDa || c.libelleDa || '',
+        demandeur: c.demandeur || '',
+        dateAffichage: fmtD(c.dateAffichage),
+        numAff: c.numAff || '',
+        dateLimite: fmtD(c.dateLimite),
+        dateClot: fmtD(c.dateClot),
+        datCde: fmtD(c.datCde),
+        delaiLivraison: fmtD(c.delaiLivraison),
+        datRec: fmtD(c.datRec),
+        factDateFr: fmtD(c.factDateFr),
+        paiementDate: fmtD(c.paiementDate),
+        montTTC: c.montTTC || c.montHT || 0,
+        observation: '',
+        statut: c.statut,
+      });
+    });
+
+    // Retour automatique sur toutes les colonnes pour afficher le texte en entier
+    ws.columns.forEach(col => { col.alignment = { wrapText: true, vertical: 'top' }; });
+
+    // En-tête coloré
+    const headerRow = ws.getRow(1);
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC17550' } };
+      cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      cell.alignment = { vertical: 'middle' };
+    });
+
+    // Bordures sur tout le tableau (en-tête + données)
+    ws.eachRow(row => {
+      row.eachCell({ includeEmpty: true }, cell => {
+        cell.border = {
+          top: { style: 'thin' }, left: { style: 'thin' },
+          bottom: { style: 'thin' }, right: { style: 'thin' },
+        };
+      });
+    });
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Commandes_filtrees_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const SortIcon = ({ col }) => {
@@ -455,6 +559,21 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
       <div className="card full-width">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
           <div className="card-title" style={{ marginBottom: 0 }}>Suivi des commandes <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>— {filteredCmds.length} résultat(s)</span></div>
+          <button
+            onClick={exportToExcel}
+            disabled={filteredCmds.length === 0}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 14px', borderRadius: 6, border: 'none',
+              background: filteredCmds.length === 0 ? 'var(--border-light)' : 'var(--accent-primary)',
+              color: filteredCmds.length === 0 ? 'var(--text-muted)' : 'white',
+              fontSize: '0.82rem', fontWeight: 500,
+              cursor: filteredCmds.length === 0 ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <FileDown size={15} />
+            Exporter Excel
+          </button>
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, marginTop: 12, flexWrap: 'wrap' }}>
@@ -462,7 +581,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
             <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
-              placeholder="Rechercher par N° CMD, fournisseur, article, objet..."
+              placeholder="Rechercher (toutes colonnes : CMD, DA, affichage, fournisseur, article, dates...)"
               value={search}
               onChange={e => setSearch(e.target.value)}
               style={{
@@ -514,14 +633,22 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
           <table className="data-table" style={{ minWidth: 1500 }}>
             <thead>
               <tr>
+                <th onClick={() => toggleSort('dateAffichage')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Affichage <SortIcon col="dateAffichage" /></th>
+                <th onClick={() => toggleSort('numAff')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>N° Affichage <SortIcon col="numAff" /></th>
+                <th onClick={() => toggleSort('dateLimite')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Limite <SortIcon col="dateLimite" /></th>
+                <th onClick={() => toggleSort('dateClot')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Clôture <SortIcon col="dateClot" /></th>
+                <th onClick={() => toggleSort('numDa')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>N° DA <SortIcon col="numDa" /></th>
+                <th onClick={() => toggleSort('datDa')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date DA <SortIcon col="datDa" /></th>
+                <th style={{ whiteSpace: 'nowrap' }}>Objet DA</th>
+                <th onClick={() => toggleSort('demandeur')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Demandeur <SortIcon col="demandeur" /></th>
                 <th onClick={() => toggleSort('numCmd')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>N° CMD <SortIcon col="numCmd" /></th>
                 <th onClick={() => toggleSort('anCmd')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Année <SortIcon col="anCmd" /></th>
                 <th onClick={() => toggleSort('nomFrn')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Fournisseur <SortIcon col="nomFrn" /></th>
+                <th onClick={() => toggleSort('codeFour')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Code Fourn. <SortIcon col="codeFour" /></th>
                 <th style={{ whiteSpace: 'nowrap' }}>Article</th>
                 <th style={{ whiteSpace: 'nowrap' }}>Nature d'article</th>
                 <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Prix unitaire</th>
-                <th style={{ whiteSpace: 'nowrap' }}>Objet</th>
-                <th onClick={() => toggleSort('dateAffichage')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Affichage <SortIcon col="dateAffichage" /></th>
+                <th style={{ width: 300 }}>Objet</th>
                 <th onClick={() => toggleSort('datCde')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Cde <SortIcon col="datCde" /></th>
                 <th onClick={() => toggleSort('delaiLivraison')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Délai Livr. Prévu <SortIcon col="delaiLivraison" /></th>
                 <th onClick={() => toggleSort('datRec')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Date Réception <SortIcon col="datRec" /></th>
@@ -530,13 +657,27 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                 <th onClick={() => toggleSort('montTTC')} style={{ textAlign: 'right', cursor: 'pointer', whiteSpace: 'nowrap' }}>Montant TTC <SortIcon col="montTTC" /></th>
                 <th onClick={() => toggleSort('statut')} style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>Statut <SortIcon col="statut" /></th>
               </tr>
-              <tr>
+              <tr className="filter-row">
+                <th>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <input type="date" value={colFilters.dateAffichageMin} onChange={e => setColFilter('dateAffichageMin', e.target.value)} style={colFilterDateStyle} />
+                    <input type="date" value={colFilters.dateAffichageMax} onChange={e => setColFilter('dateAffichageMax', e.target.value)} style={colFilterDateStyle} />
+                  </div>
+                </th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
                 <th></th>
                 <th></th>
                 <th>
                   <input type="text" value={colFilters.fournisseur} onChange={e => setColFilter('fournisseur', e.target.value)}
                     placeholder="Filtrer..." style={colFilterInputStyle} />
                 </th>
+                <th></th>
                 <th>
                   <input type="text" value={colFilters.article} onChange={e => setColFilter('article', e.target.value)}
                     placeholder="Filtrer..." style={colFilterInputStyle} />
@@ -556,12 +697,6 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                 <th>
                   <input type="text" value={colFilters.objet} onChange={e => setColFilter('objet', e.target.value)}
                     placeholder="Filtrer..." style={colFilterInputStyle} />
-                </th>
-                <th>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <input type="date" value={colFilters.dateAffichageMin} onChange={e => setColFilter('dateAffichageMin', e.target.value)} style={colFilterDateStyle} />
-                    <input type="date" value={colFilters.dateAffichageMax} onChange={e => setColFilter('dateAffichageMax', e.target.value)} style={colFilterDateStyle} />
-                  </div>
                 </th>
                 <th>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -610,9 +745,18 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                 const fmtD = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
                 return (
                   <tr key={i}>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.dateAffichage)}</td>
+                    <td style={{ fontSize: '0.75rem' }}>{c.numAff || '—'}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.dateLimite)}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.dateClot)}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{c.numDa || '—'}</td>
+                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.datDa)}</td>
+                    <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{c.objDa || c.libelleDa || '—'}</td>
+                    <td style={{ fontSize: '0.78rem' }}>{c.demandeur || '—'}</td>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{c.numCmd}</td>
                     <td style={{ fontSize: '0.78rem' }}>{c.anCmd || '—'}</td>
                     <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nomFrn || '—'}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{c.codeFour || '—'}</td>
                     <td style={{ maxWidth: 200, fontSize: '0.78rem' }} title={(c.articles || []).map(a => a.article).join(', ')}>
                       {c.articles && c.articles.length > 0 ? (
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
@@ -631,8 +775,7 @@ export default function DashboardPage({ kpis, delays, supplierStats, paymentAler
                           : `${formatMontant(Math.min(...c.articles.map(a => a.pu || 0)))} – ${formatMontant(Math.max(...c.articles.map(a => a.pu || 0)))}`
                       ) : '—'}
                     </td>
-                    <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{c.obsCde || '—'}</td>
-                    <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.dateAffichage)}</td>
+                    <td style={{ width: 300, whiteSpace: 'normal', wordBreak: 'break-word', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{c.obsCde || '—'}</td>
                     <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.datCde)}</td>
                     <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.delaiLivraison)}</td>
                     <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtD(c.datRec)}</td>

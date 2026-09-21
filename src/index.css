@@ -333,6 +333,15 @@ body {
   color: var(--text-muted);
   border-bottom: 2px solid var(--border);
   background: var(--bg-main);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+/* Table avec une 2e ligne d'en-tete (filtres par colonne, ex: Dashboard) :
+   seule la 1ere ligne (libelles) reste figee, sinon les deux se superposent. */
+.data-table thead tr.filter-row th {
+  position: static;
 }
 
 .data-table td {

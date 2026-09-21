@@ -1,23 +1,39 @@
 import React, { useState, useMemo } from 'react';
+import ExcelJS from 'exceljs';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from 'recharts';
 import { formatMontant } from '../utils/stats';
 import { matchesAnySearch } from '../utils/search';
 import { formatCaracteristiques } from '../utils/characteristics';
-import { Search, X } from 'lucide-react';
+import { Search, X, FileDown } from 'lucide-react';
+import { sortRows, makeToggleSort } from '../utils/sortUtils';
+import SortIcon from '../components/SortIcon';
 
 export default function ArticlesPage({ articleStats }) {
   const { referentiel = [] } = articleStats;
   const [search, setSearch] = useState('');
   const [searchNature, setSearchNature] = useState('');
   const [searchObjet, setSearchObjet] = useState('');
+  const [searchFournisseur, setSearchFournisseur] = useState('');
   const [selected, setSelected] = useState(null);
   const [caracSearch, setCaracSearch] = useState('');
   const [natureFilter, setNatureFilter] = useState('');
+  const [anneeFilter, setAnneeFilter] = useState('');
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+  const toggleSort = makeToggleSort(sortKey, setSortKey, setSortDir);
+  const [histSortKey, setHistSortKey] = useState(null);
+  const [histSortDir, setHistSortDir] = useState('asc');
+  const histToggleSort = makeToggleSort(histSortKey, setHistSortKey, setHistSortDir);
 
   const naturesList = useMemo(
     () => [...new Set(referentiel.map(a => a.natureArticle).filter(Boolean))].sort(),
+    [referentiel]
+  );
+
+  const anneesList = useMemo(
+    () => [...new Set(referentiel.map(a => a.derniereDate ? new Date(a.derniereDate).getFullYear() : null).filter(Boolean))].sort((x, y) => y - x),
     [referentiel]
   );
 
@@ -27,6 +43,9 @@ export default function ArticlesPage({ articleStats }) {
       ...a,
       _caracText: formatCaracteristiques(`${a.label} ${(a.objets || []).join(' ')}`),
       _numBCs: [...new Set((a.entries || []).map(e => e.numBC).filter(Boolean))],
+      _fournisseurActuel: (a.entries && a.entries.length > 0)
+        ? a.entries[a.entries.length - 1].fournisseur
+        : (a.fournisseurs && a.fournisseurs[0]) || null,
     }));
   }, [referentiel]);
 
@@ -41,14 +60,42 @@ export default function ArticlesPage({ articleStats }) {
     if (natureFilter) {
       list = list.filter(a => (a.natureArticle || '').trim() === natureFilter.trim());
     }
+    if (anneeFilter) {
+      list = list.filter(a => a.derniereDate && new Date(a.derniereDate).getFullYear() === Number(anneeFilter));
+    }
     if (searchObjet.trim()) {
       list = list.filter(a => matchesAnySearch(a.objets, searchObjet));
+    }
+    if (searchFournisseur.trim()) {
+      list = list.filter(a => matchesAnySearch(a.fournisseurs, searchFournisseur));
     }
     if (caracSearch.trim()) {
       list = list.filter(a => matchesAnySearch([a._caracText], caracSearch));
     }
     return list;
-  }, [referentielAvecCarac, search, searchNature, natureFilter, searchObjet, caracSearch]);
+  }, [referentielAvecCarac, search, searchNature, natureFilter, anneeFilter, searchObjet, searchFournisseur, caracSearch]);
+
+  const sortedFiltered = useMemo(() => {
+    if (!sortKey) return filtered;
+    const getValue = (a) => {
+      switch (sortKey) {
+        case 'article': return a.label || a.code;
+        case 'nature': return a.natureArticle;
+        case 'fournisseur': return a._fournisseurActuel;
+        case 'numBC': return a._numBCs[0];
+        case 'annee': return a.derniereDate ? new Date(a.derniereDate).getFullYear() : null;
+        case 'puMinMax': return a.puMin;
+        default: return a[sortKey];
+      }
+    };
+    return sortRows(filtered, sortKey, sortDir, getValue);
+  }, [filtered, sortKey, sortDir]);
+
+  const sortedEntries = useMemo(() => {
+    if (!selected) return [];
+    if (!histSortKey) return selected.entries;
+    return sortRows(selected.entries, histSortKey, histSortDir);
+  }, [selected, histSortKey, histSortDir]);
 
   const chartData = selected
     ? selected.entries.map(e => ({
@@ -63,6 +110,70 @@ export default function ArticlesPage({ articleStats }) {
     ? Math.round(((selected.puMax - selected.puMin) / selected.puMin) * 100)
     : 0;
 
+  const exportToExcel = async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Référentiel Prix');
+
+    const columns = [
+      { header: 'Article', key: 'article', width: 35 },
+      { header: "Nature d'article", key: 'nature', width: 22 },
+      { header: 'N° BC', key: 'numBC', width: 18 },
+      { header: 'Caractéristiques', key: 'carac', width: 25 },
+      { header: 'Année', key: 'annee', width: 10 },
+      { header: 'PU actuel', key: 'puActuel', width: 14 },
+      { header: 'PU min', key: 'puMin', width: 12 },
+      { header: 'PU max', key: 'puMax', width: 12 },
+      { header: 'Nb commandes', key: 'nbCmd', width: 14 },
+      { header: 'Observation', key: 'observation', width: 30 },
+    ];
+    ws.columns = columns;
+
+    sortedFiltered.forEach(a => {
+      ws.addRow({
+        article: a.label || a.code,
+        nature: a.natureArticle || '',
+        numBC: a._numBCs.join(', '),
+        carac: a._caracText,
+        annee: a.derniereDate ? new Date(a.derniereDate).getFullYear() : '',
+        puActuel: a.puActuel,
+        puMin: a.puMin,
+        puMax: a.puMax,
+        observation: '',
+        nbCmd: a.nbCommandes,
+      });
+    });
+
+    // Retour automatique sur toutes les colonnes pour afficher le texte en entier
+    ws.columns.forEach(col => { col.alignment = { wrapText: true, vertical: 'top' }; });
+
+    // En-tête coloré
+    const headerRow = ws.getRow(1);
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC17550' } };
+      cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      cell.alignment = { vertical: 'middle' };
+    });
+
+    // Bordures sur tout le tableau (en-tête + données)
+    ws.eachRow(row => {
+      row.eachCell({ includeEmpty: true }, cell => {
+        cell.border = {
+          top: { style: 'thin' }, left: { style: 'thin' },
+          bottom: { style: 'thin' }, right: { style: 'thin' },
+        };
+      });
+    });
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Referentiel_Prix_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
@@ -70,14 +181,36 @@ export default function ArticlesPage({ articleStats }) {
           <h1>Référentiel Prix</h1>
           <p>{referentiel.length} articles référencés — base de prix par article</p>
         </div>
-        <select
-          value={natureFilter}
-          onChange={e => setNatureFilter(e.target.value)}
-          style={{ padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem', background: 'white', minWidth: 170 }}
-        >
-          <option value="">Toutes les natures</option>
-          {naturesList.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <select
+            value={natureFilter}
+            onChange={e => setNatureFilter(e.target.value)}
+            style={{ padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem', background: 'white', minWidth: 170 }}
+          >
+            <option value="">Toutes les natures</option>
+            {naturesList.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <select
+            value={anneeFilter}
+            onChange={e => setAnneeFilter(e.target.value)}
+            style={{ padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem', background: 'white', minWidth: 130 }}
+          >
+            <option value="">Toutes les années</option>
+            {anneesList.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <button
+            onClick={exportToExcel}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 14px', borderRadius: 6, border: 'none',
+              background: 'var(--accent-primary)', color: 'white',
+              fontSize: '0.82rem', fontWeight: 500, cursor: 'pointer',
+            }}
+          >
+            <FileDown size={15} />
+            Exporter Excel
+          </button>
+        </div>
       </div>
 
       <div className="card full-width">
@@ -112,6 +245,16 @@ export default function ArticlesPage({ articleStats }) {
               style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem' }}
             />
           </div>
+          <div style={{ position: 'relative', flex: '1 1 220px' }}>
+            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Rechercher par fournisseur..."
+              value={searchFournisseur}
+              onChange={e => setSearchFournisseur(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border-light)', borderRadius: 6, fontSize: '0.82rem' }}
+            />
+          </div>
         </div>
 
         <div style={{ position: 'relative', marginBottom: 14 }}>
@@ -132,18 +275,19 @@ export default function ArticlesPage({ articleStats }) {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Article</th>
-                    <th>Nature d'article</th>
-                    <th>N° BC</th>
+                    <th onClick={() => toggleSort('article')} style={{ cursor: 'pointer' }}>Article <SortIcon sortKey={sortKey} sortDir={sortDir} col="article" /></th>
+                    <th onClick={() => toggleSort('nature')} style={{ cursor: 'pointer' }}>Nature d'article <SortIcon sortKey={sortKey} sortDir={sortDir} col="nature" /></th>
+                    <th onClick={() => toggleSort('fournisseur')} style={{ cursor: 'pointer' }}>Fournisseur <SortIcon sortKey={sortKey} sortDir={sortDir} col="fournisseur" /></th>
+                    <th onClick={() => toggleSort('numBC')} style={{ cursor: 'pointer' }}>N° BC <SortIcon sortKey={sortKey} sortDir={sortDir} col="numBC" /></th>
                     <th>Caractéristiques</th>
-                    <th style={{ textAlign: 'right' }}>Année</th>
-                    <th style={{ textAlign: 'right' }}>PU actuel</th>
-                    <th style={{ textAlign: 'right' }}>PU min - max</th>
-                    <th style={{ textAlign: 'right' }}>Nb cmd</th>
+                    <th onClick={() => toggleSort('annee')} style={{ textAlign: 'right', cursor: 'pointer' }}>Année <SortIcon sortKey={sortKey} sortDir={sortDir} col="annee" /></th>
+                    <th onClick={() => toggleSort('puActuel')} style={{ textAlign: 'right', cursor: 'pointer' }}>PU actuel <SortIcon sortKey={sortKey} sortDir={sortDir} col="puActuel" /></th>
+                    <th onClick={() => toggleSort('puMinMax')} style={{ textAlign: 'right', cursor: 'pointer' }}>PU min - max <SortIcon sortKey={sortKey} sortDir={sortDir} col="puMinMax" /></th>
+                    <th onClick={() => toggleSort('nbCommandes')} style={{ textAlign: 'right', cursor: 'pointer' }}>Nb cmd <SortIcon sortKey={sortKey} sortDir={sortDir} col="nbCommandes" /></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.slice(0, 300).map((a, i) => (
+                  {sortedFiltered.slice(0, 300).map((a, i) => (
                     <tr
                       key={i}
                       onClick={() => setSelected(a)}
@@ -151,6 +295,12 @@ export default function ArticlesPage({ articleStats }) {
                     >
                       <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label || a.code}</td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{a.natureArticle || '—'}</td>
+                      <td style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }} title={(a.fournisseurs || []).join(', ')}>
+                        {a._fournisseurActuel || '—'}
+                        {a.fournisseurs && a.fournisseurs.length > 1 && (
+                          <span style={{ color: 'var(--text-muted)' }}> (+{a.fournisseurs.length - 1})</span>
+                        )}
+                      </td>
                       <td style={{ fontSize: '0.75rem', fontFamily: 'monospace' }} title={a._numBCs.join(', ')}>
                         {a._numBCs.length > 0 ? (
                           <>
@@ -253,14 +403,14 @@ export default function ArticlesPage({ articleStats }) {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Date</th>
-                      <th>Fournisseur</th>
-                      <th style={{ textAlign: 'right' }}>PU</th>
-                      <th style={{ textAlign: 'right' }}>Qté</th>
+                      <th onClick={() => histToggleSort('date')} style={{ cursor: 'pointer' }}>Date <SortIcon sortKey={histSortKey} sortDir={histSortDir} col="date" /></th>
+                      <th onClick={() => histToggleSort('fournisseur')} style={{ cursor: 'pointer' }}>Fournisseur <SortIcon sortKey={histSortKey} sortDir={histSortDir} col="fournisseur" /></th>
+                      <th onClick={() => histToggleSort('pu')} style={{ textAlign: 'right', cursor: 'pointer' }}>PU <SortIcon sortKey={histSortKey} sortDir={histSortDir} col="pu" /></th>
+                      <th onClick={() => histToggleSort('qte')} style={{ textAlign: 'right', cursor: 'pointer' }}>Qté <SortIcon sortKey={histSortKey} sortDir={histSortDir} col="qte" /></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {selected.entries.map((e, i) => (
+                    {sortedEntries.map((e, i) => (
                       <tr key={i}>
                         <td style={{ fontSize: '0.78rem' }}>{e.date ? new Date(e.date).toLocaleDateString('fr-FR') : '—'}</td>
                         <td style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.78rem' }}>{e.fournisseur}</td>

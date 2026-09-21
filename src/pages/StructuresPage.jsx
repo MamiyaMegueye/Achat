@@ -5,6 +5,8 @@ import {
 import { formatMontant } from '../utils/stats';
 import { matchesSearch, matchesAnySearch } from '../utils/search';
 import { Search, Layers } from 'lucide-react';
+import { sortRows, makeToggleSort } from '../utils/sortUtils';
+import SortIcon from '../components/SortIcon';
 
 export default function StructuresPage({ structureStats, categorisation = [], structureArticleDetail = [] }) {
   const structureNameMap = useMemo(() => {
@@ -18,7 +20,7 @@ export default function StructuresPage({ structureStats, categorisation = [], st
     montant: Math.round(s.montantTotal / 1000),
   }));
 
-  // === (2) Répartition Catégorie × Domaine d'achat par structure ===
+  // === (2) Répartition Catégorie × Famille d'achat par structure ===
   const [structureFilterMain, setStructureFilterMain] = useState('');
 
   const repartitionParStructure = useMemo(() => {
@@ -37,8 +39,16 @@ export default function StructuresPage({ structureStats, categorisation = [], st
     });
     let rows = Object.values(map);
     if (structureFilterMain) rows = rows.filter(r => r.structure === structureFilterMain);
-    return rows.sort((a, b) => b.montantHT - a.montantHT);
+    return rows;
   }, [categorisation, structureFilterMain]);
+
+  const [repSortKey, setRepSortKey] = useState('montantHT');
+  const [repSortDir, setRepSortDir] = useState('desc');
+  const repToggleSort = makeToggleSort(repSortKey, setRepSortKey, setRepSortDir);
+  const repartitionSorted = useMemo(
+    () => sortRows(repartitionParStructure, repSortKey, repSortDir),
+    [repartitionParStructure, repSortKey, repSortDir]
+  );
 
   const structuresListMain = useMemo(
     () => [...new Set(categorisation.map(c => c.structure))].sort(),
@@ -66,8 +76,16 @@ export default function StructuresPage({ structureStats, categorisation = [], st
     if (categorieFilter) rows = rows.filter(r => r.categorie === categorieFilter);
     if (natureSearch.trim()) rows = rows.filter(r => matchesSearch(r.natureArticle, natureSearch));
     if (codeSearch.trim()) rows = rows.filter(r => matchesAnySearch([String(r.numBC), r.codeArticle, r.article], codeSearch));
-    return [...rows].sort((a, b) => b.montantHT - a.montantHT);
+    return rows;
   }, [structureArticleDetail, structureFilter, categorieFilter, natureSearch, codeSearch]);
+
+  const [detSortKey, setDetSortKey] = useState('montantHT');
+  const [detSortDir, setDetSortDir] = useState('desc');
+  const detToggleSort = makeToggleSort(detSortKey, setDetSortKey, setDetSortDir);
+  const filteredDetailSorted = useMemo(
+    () => sortRows(filteredDetail, detSortKey, detSortDir),
+    [filteredDetail, detSortKey, detSortDir]
+  );
 
   return (
     <div>
@@ -92,11 +110,11 @@ export default function StructuresPage({ structureStats, categorisation = [], st
         </ResponsiveContainer>
       </div>
 
-      {/* === (2) Répartition par Catégorie et Domaine d'achat === */}
+      {/* === (2) Répartition par Catégorie et Famille d'achat === */}
       {categorisation.length > 0 && (
         <div className="card full-width">
           <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>Répartition par Catégorie et Domaine d'achat</span>
+            <span>Répartition par Catégorie et Famille d'achat</span>
             <select
               value={structureFilterMain}
               onChange={e => setStructureFilterMain(e.target.value)}
@@ -110,16 +128,16 @@ export default function StructuresPage({ structureStats, categorisation = [], st
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Structure</th>
-                  <th>Nom Structure</th>
-                  <th>Domaine d'achat</th>
-                  <th>Catégorie</th>
-                  <th style={{ textAlign: 'right' }}>Nb lignes</th>
-                  <th style={{ textAlign: 'right' }}>Montant HT</th>
+                  <th onClick={() => repToggleSort('structure')} style={{ cursor: 'pointer' }}>Structure <SortIcon sortKey={repSortKey} sortDir={repSortDir} col="structure" /></th>
+                  <th onClick={() => repToggleSort('nomStructure')} style={{ cursor: 'pointer' }}>Nom Structure <SortIcon sortKey={repSortKey} sortDir={repSortDir} col="nomStructure" /></th>
+                  <th onClick={() => repToggleSort('grandeCategorie')} style={{ cursor: 'pointer' }}>Famille d'achat <SortIcon sortKey={repSortKey} sortDir={repSortDir} col="grandeCategorie" /></th>
+                  <th onClick={() => repToggleSort('categorie')} style={{ cursor: 'pointer' }}>Catégorie <SortIcon sortKey={repSortKey} sortDir={repSortDir} col="categorie" /></th>
+                  <th onClick={() => repToggleSort('nbLignes')} style={{ textAlign: 'right', cursor: 'pointer' }}>Nb lignes <SortIcon sortKey={repSortKey} sortDir={repSortDir} col="nbLignes" /></th>
+                  <th onClick={() => repToggleSort('montantHT')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant HT <SortIcon sortKey={repSortKey} sortDir={repSortDir} col="montantHT" /></th>
                 </tr>
               </thead>
               <tbody>
-                {repartitionParStructure.slice(0, 200).map((r, i) => (
+                {repartitionSorted.slice(0, 200).map((r, i) => (
                   <tr key={i}>
                     <td style={{ fontWeight: 500 }}>{r.structure}</td>
                     <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{r.nomStructure || '—'}</td>
@@ -199,18 +217,18 @@ export default function StructuresPage({ structureStats, categorisation = [], st
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Structure</th>
-                  <th>N° BC</th>
-                  <th>Code Article</th>
-                  <th>Article</th>
-                  <th>Domaine d'achat</th>
-                  <th>Catégorie</th>
-                  <th>Nature d'article</th>
-                  <th style={{ textAlign: 'right' }}>Montant HT</th>
+                  <th onClick={() => detToggleSort('structure')} style={{ cursor: 'pointer' }}>Structure <SortIcon sortKey={detSortKey} sortDir={detSortDir} col="structure" /></th>
+                  <th onClick={() => detToggleSort('numBC')} style={{ cursor: 'pointer' }}>N° BC <SortIcon sortKey={detSortKey} sortDir={detSortDir} col="numBC" /></th>
+                  <th onClick={() => detToggleSort('codeArticle')} style={{ cursor: 'pointer' }}>Code Article <SortIcon sortKey={detSortKey} sortDir={detSortDir} col="codeArticle" /></th>
+                  <th onClick={() => detToggleSort('article')} style={{ cursor: 'pointer' }}>Article <SortIcon sortKey={detSortKey} sortDir={detSortDir} col="article" /></th>
+                  <th onClick={() => detToggleSort('grandeCategorie')} style={{ cursor: 'pointer' }}>Famille d'achat <SortIcon sortKey={detSortKey} sortDir={detSortDir} col="grandeCategorie" /></th>
+                  <th onClick={() => detToggleSort('categorie')} style={{ cursor: 'pointer' }}>Catégorie <SortIcon sortKey={detSortKey} sortDir={detSortDir} col="categorie" /></th>
+                  <th onClick={() => detToggleSort('natureArticle')} style={{ cursor: 'pointer' }}>Nature d'article <SortIcon sortKey={detSortKey} sortDir={detSortDir} col="natureArticle" /></th>
+                  <th onClick={() => detToggleSort('montantHT')} style={{ textAlign: 'right', cursor: 'pointer' }}>Montant HT <SortIcon sortKey={detSortKey} sortDir={detSortDir} col="montantHT" /></th>
                 </tr>
               </thead>
               <tbody>
-                {filteredDetail.slice(0, 300).map((r, i) => (
+                {filteredDetailSorted.slice(0, 300).map((r, i) => (
                   <tr key={i}>
                     <td style={{ fontWeight: 600 }}>{r.structure}</td>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{r.numBC}</td>

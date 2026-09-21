@@ -535,4 +535,74 @@ export function computeSeasonality(cmds) {
   return Object.values(monthMap).sort((a, b) => a.mois.localeCompare(b.mois));
 }
 
+
+// --- Reporting journalier : commandes / demandes d'achat / factures / paiements ---
+
+function dayKey(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  if (!d || isNaN(dt)) return null;
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+export function computeReportingJournalier(cmds) {
+  const days = {};
+  const ensureDay = (k) => {
+    if (!days[k]) {
+      days[k] = { date: k, nbCommandes: 0, daSet: new Set(), nbFactures: 0, frnPayesSet: new Set() };
+    }
+    return days[k];
+  };
+
+  cmds.forEach(c => {
+    const kCde = dayKey(c.datCde);
+    if (kCde) ensureDay(kCde).nbCommandes++;
+
+    // Le jour de reference pour la DA est celui du bon de commande (datCde,
+    // toujours a jour via STK_CMD) et non celui de la DA elle-meme (datDa,
+    // qui vient uniquement de SUIVI_CMD et manque souvent sur les commandes
+    // recentes).
+    if (kCde && c.numDa) ensureDay(kCde).daSet.add(`${c.anDa}-${c.numDa}`);
+
+    const kFact = dayKey(c.factDateFact);
+    if (kFact) ensureDay(kFact).nbFactures++;
+
+    const kPaie = dayKey(c.paiementDate);
+    if (kPaie && c.nomFrn) ensureDay(kPaie).frnPayesSet.add(c.nomFrn);
+  });
+
+  const rows = Object.values(days)
+    .map(d => ({
+      date: d.date,
+      nbCommandes: d.nbCommandes,
+      nbDA: d.daSet.size,
+      nbFactures: d.nbFactures,
+      nbFrnPayes: d.frnPayesSet.size,
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  // Totaux globaux (toutes periodes confondues)
+  const totalCommandes = cmds.filter(c => c.datCde).length;
+
+  const daGlobalSet = new Set();
+  cmds.forEach(c => { if (c.numDa) daGlobalSet.add(`${c.anDa}-${c.numDa}`); });
+  const totalDA = daGlobalSet.size;
+
+  const totalFactures = cmds.filter(c => c.factDateFact || c.factNumFact).length;
+
+  // Fournisseur "paye" = a recu au moins un paiement enregistre (toutes commandes confondues)
+  const frnStatut = {};
+  cmds.forEach(c => {
+    if (!c.nomFrn) return;
+    if (!(c.nomFrn in frnStatut)) frnStatut[c.nomFrn] = false;
+    if (c.paiementDate) frnStatut[c.nomFrn] = true;
+  });
+  const nbFournisseursPayes = Object.values(frnStatut).filter(Boolean).length;
+  const nbFournisseursNonPayes = Object.values(frnStatut).filter(p => !p).length;
+
+  return {
+    rows,
+    totaux: { totalCommandes, totalDA, totalFactures, nbFournisseursPayes, nbFournisseursNonPayes },
+  };
+}
+
 export { formatMontant, daysBetween };

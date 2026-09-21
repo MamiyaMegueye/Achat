@@ -3,57 +3,45 @@ import TopNav from './components/TopNav';
 import FileUpload from './components/FileUpload';
 import DashboardPage from './pages/DashboardPage';
 import DelaysPage from './pages/DelaysPage';
-import SuppliersPage from './pages/SuppliersPage';
 import ArticlesPage from './pages/ArticlesPage';
 import AlertsPage from './pages/AlertsPage';
 import StructuresPage from './pages/StructuresPage';
 import AnomaliesPage from './pages/AnomaliesPage';
 import EngagementsPage from './pages/EngagementsPage';
-import { getAllBonsCommande, getAllSuiviCmd, getAllCategorisation, getAllArticleCategorisation, getDataCounts } from './utils/storage';
+import ReportingPage from './pages/ReportingPage';
+import InstancesPage from './pages/InstancesPage';
+import { getAllBonsCommande, getAllSuiviCmd, getAllCategorisation, getAllArticleCategorisation, getAllStructureDirection, getDataCounts, getActiveMode } from './utils/storage';
+import { syncFromApi } from './utils/apiSync';
 import {
   computeKPIs, computeDelays, computeSupplierStats,
   computeArticleStats, computePaymentAlerts,
   computeStructureStats, computeMissingDocs, computeSeasonality,
   computeDependencyStats
 } from './utils/stats';
-import { Upload, FileDown } from 'lucide-react';
-import { exportAllPagesPdf } from './utils/exportPdf';
+import { Upload } from 'lucide-react';
 
 export default function App() {
   const [activePage, setActivePage] = useState('import');
+  const [mode, setMode] = useState(getActiveMode());
   const [dataCounts, setDataCounts] = useState({ bcCount: 0, cmdCount: 0, categorisationCount: 0 });
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState('');
 
-  const handleExportPdf = async () => {
-    const originalPage = activePage;
-    setExporting(true);
-    try {
-      await exportAllPagesPdf(setActivePage, (current, total, label) => {
-        setExportProgress(`${label} (${current}/${total})`);
-      });
-    } catch (err) {
-      console.error('Export PDF error:', err);
-    }
-    setActivePage(originalPage);
-    setExporting(false);
-    setExportProgress('');
-  };
-
-  const refreshData = useCallback(async () => {
-    setLoading(true);
+  const refreshData = useCallback(async (opts = {}) => {
+    const silent = !!opts.silent;
+    if (!silent) setLoading(true);
+    setMode(getActiveMode());
     try {
       const counts = await getDataCounts();
       setDataCounts(counts);
 
       if (counts.bcCount > 0 || counts.cmdCount > 0) {
-        const [bcs, cmds, categorisation, articleCategorisation] = await Promise.all([
+        const [bcs, cmds, categorisation, articleCategorisation, structureDirection] = await Promise.all([
           getAllBonsCommande(),
           getAllSuiviCmd(),
           getAllCategorisation(),
           getAllArticleCategorisation(),
+          getAllStructureDirection(),
         ]);
 
         const kpis = computeKPIs(cmds, bcs);
@@ -152,7 +140,7 @@ export default function App() {
         setStats({
           kpis, delays, supplierStats, articleStats,
           paymentAlerts, structureStats, missingDocs, cmds: cmdsEnrichies, seasonality, dependencyStats,
-          categorisation, structureArticleDetail,
+          categorisation, structureArticleDetail, structureDirection,
         });
 
         if (activePage === 'import' && counts.bcCount > 0 && counts.cmdCount > 0) {
@@ -164,12 +152,30 @@ export default function App() {
     } catch (err) {
       console.error('Error loading data:', err);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  // Synchronisation automatique Postgres -> interface (mode Base uniquement).
+  // Le backend (etl_pipeline.py) synchronise Oracle -> Postgres en continu ;
+  // cet effet rapatrie ces donnees vers le tableau de bord sans action manuelle.
+  useEffect(() => {
+    if (mode !== 'api') return;
+    const AUTO_SYNC_INTERVAL = 60000; // 60s, aligne sur le cycle de polling du backend
+    const tick = async () => {
+      try {
+        await syncFromApi(null);
+        await refreshData({ silent: true });
+      } catch (err) {
+        console.error('Auto-sync Postgres -> interface echouee:', err);
+      }
+    };
+    const id = setInterval(tick, AUTO_SYNC_INTERVAL);
+    return () => clearInterval(id);
+  }, [mode, refreshData]);
 
   const dataLoaded = stats !== null;
 
@@ -204,16 +210,25 @@ export default function App() {
           seasonality={stats.seasonality}
         />;
       case 'delays':
-        return <DelaysPage delays={stats.delays} cmds={stats.cmds} />;
-      case 'suppliers':
-        return <SuppliersPage supplierStats={stats.supplierStats} />;
+        return <DelaysPage delays={stats.delays} cmds={stats.cmds} supplierStats={stats.supplierStats} />;
       case 'articles':
         return <ArticlesPage articleStats={stats.articleStats} />;
       // alerts supprimé — intégré dans Vue d'ensemble
       case 'engagements':
         return <EngagementsPage cmds={stats.cmds} />;
+      case 'reporting':
+        return mode === 'api'
+          ? <ReportingPage cmds={stats.cmds} />
+          : (
+            <div className="empty-state">
+              <h2>Disponible en mode Base uniquement</h2>
+              <p>Le Reporting Journalier s'appuie sur les demandes d'achat synchronisées depuis la base de données. Passez en mode Base (onglet Import) pour y accéder.</p>
+            </div>
+          );
       case 'structures':
         return <StructuresPage structureStats={stats.structureStats} categorisation={stats.categorisation} structureArticleDetail={stats.structureArticleDetail} />;
+      case 'instances':
+        return <InstancesPage cmds={stats.cmds} structureDirection={stats.structureDirection} />;
       case 'anomalies':
         return <AnomaliesPage missingDocs={stats.missingDocs} cmds={stats.cmds} />;
       default:
@@ -227,26 +242,8 @@ export default function App() {
         activePage={activePage}
         onNavigate={setActivePage}
         dataLoaded={dataLoaded}
-        onExportPdf={handleExportPdf}
-        exporting={exporting}
+        mode={mode}
       />
-      {exporting && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.4)', zIndex: 9999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{
-            background: 'white', borderRadius: 12, padding: '30px 50px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '1rem', fontWeight: 600, color: '#333', marginBottom: 8 }}>
-              Export PDF en cours...
-            </div>
-            <div style={{ fontSize: '0.85rem', color: '#c17550' }}>{exportProgress}</div>
-          </div>
-        </div>
-      )}
       <main className="main-content">
         {loading ? (
           <div style={{
