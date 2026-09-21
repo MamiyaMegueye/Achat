@@ -72,10 +72,19 @@ export default function ReportingPage({ cmds = [] }) {
         : null;
       return fromArticles || c.obsCde || null;
     };
+    // Montant de la commande (MONTCDE de STK_CMD, toujours a jour, porte par
+    // les lignes de bon de commande jointes) -- montTTC/montHT (SUIVI_CMD)
+    // ne sont utilises qu'en repli si la jointure manque.
+    const montantCmdOf = (c) => {
+      const fromArticles = Array.isArray(c.articles) && c.articles.length > 0
+        ? (c.articles.find(a => a.totalTTC != null)?.totalTTC ?? null)
+        : null;
+      return fromArticles ?? c.montTTC ?? c.montHT ?? null;
+    };
 
     cmds.forEach(c => {
       if (dayKey(c.datCde) === selectedDay) {
-        out.push({ type: 'Commande émise', ref: c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), montant: c.montTTC ?? c.montHT ?? null });
+        out.push({ type: 'Commande émise', ref: c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), montant: montantCmdOf(c) });
       }
       // Reference = le bon de commande (datCde), pas la date de la DA elle-meme
       // (datDa, souvent vide sur les commandes recentes).
@@ -88,14 +97,14 @@ export default function ReportingPage({ cmds = [] }) {
           // jour via STK_CMD) comme approximation -- dupliquee entre la DA
           // et la commande, comme pour la structure.
           // Montant de la commande liee (STK_CMD), en repli faute de montant propre a la DA.
-          out.push({ type: "Demande d'achat", ref: c.numDa, tiers: c.demandeur || '—', article: '—', objet: c.objDa || c.libelleDa || objetCmdOf(c) || '—', structure: structureOf(c), montant: c.montTTC ?? c.montHT ?? null });
+          out.push({ type: "Demande d'achat", ref: c.numDa, tiers: c.demandeur || '—', article: '—', objet: c.objDa || c.libelleDa || objetCmdOf(c) || '—', structure: structureOf(c), montant: montantCmdOf(c) });
         }
       }
       if (dayKey(c.factDateFact) === selectedDay) {
-        out.push({ type: 'Facture émise', ref: c.factNumFact || c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), montant: c.montTTC ?? c.montHT ?? null });
+        out.push({ type: 'Facture émise', ref: c.factNumFact || c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), montant: montantCmdOf(c) });
       }
       if (dayKey(c.paiementDate) === selectedDay) {
-        out.push({ type: 'Paiement', ref: c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), montant: c.paiementMontant ?? c.montTTC ?? null });
+        out.push({ type: 'Paiement', ref: c.numCmd, tiers: c.nomFrn || '—', article: articleLabel(c), objet: objetCmdOf(c) || '—', structure: structureOf(c), montant: c.paiementMontant ?? montantCmdOf(c) });
       }
     });
     return out;

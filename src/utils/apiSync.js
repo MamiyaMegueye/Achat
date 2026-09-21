@@ -18,7 +18,10 @@ async function fetchBonsCommandeApi(since) {
     qte: r.qte || 0,
     pu: r.pu || 0,
     totalHT: (r.qte || 0) * (r.pu || 0),
-    totalTTC: null,
+    // Montant de la commande (MONTCDE de STK_CMD, toujours a jour) -- a
+    // distinguer de montTTC/montHT de fetchSuiviCmdApi, qui viennent de
+    // SUIVI_CMD et accusent le meme retard de synchro que numDa/objet.
+    totalTTC: r.montant != null ? Number(r.montant) : null,
     fournisseur: r.fournisseur || '',
     objet: r.objet || '',
     article: r.article || '',
